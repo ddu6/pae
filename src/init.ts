@@ -19,7 +19,7 @@ if(!fs.existsSync(path0))fs.writeFileSync(path0,
         {
             "title":"普通物理",
             "number":3,
-            "department":"数院"
+            "department":"数学科学学院"
         },
         {
             "title":"逻辑导论"
