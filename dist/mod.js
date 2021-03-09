@@ -187,7 +187,7 @@ async function post(url, params = {}, cookie = '', referer = '') {
 const electAndDropURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do';
 const homepageURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/help/HelpController.jpf';
 const recognizeErrLimit = 10;
-const sessionTimeLimit = 600;
+const sessionTimeLimit = 3600;
 async function getLoginCookie(studentId, password, appId, appName, redirectURL) {
     let { cookie } = await get('https://iaaa.pku.edu.cn/iaaa/oauth.jsp', {
         appID: appId,
