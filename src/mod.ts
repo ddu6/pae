@@ -474,7 +474,17 @@ export async function main(){
             const electResult=await electCourse(href,mainCookie)
             if(electResult!==200){
                 log(`Fail to elect ${title} ${number} of ${department}.`)
-                return
+                const verifyResult=await verifyCookie(studentId,tusername,tpassword,mainCookie)
+                if(verifyResult!==200){
+                    log(`${verifyResult}. Fail to verify main cookie.`)
+                    return
+                }
+                log('Main cookie verified.')
+                const electResult=await electCourse(href,mainCookie)
+                if(electResult!==200){
+                    log(`Fail to elect ${title} ${number} of ${department}.`)
+                    return
+                }            
             }
             if(mainCourseInfos.length===1){
                 log('Finished.')
