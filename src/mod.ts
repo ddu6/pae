@@ -201,7 +201,6 @@ async function post(url:string,params:Record<string,string>={},cookie='',referer
 const electAndDropURL='https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do'
 const homepageURL='https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/help/HelpController.jpf'
 const recognizeErrLimit=10
-const sessionTimeLimit=3600
 async function getLoginCookie(studentId:string,password:string,appId:string,appName:string,redirectURL:string){
     let {cookie}=await get('https://iaaa.pku.edu.cn/iaaa/oauth.jsp',{
         appID:appId,
@@ -399,8 +398,8 @@ async function getCourseInfos(courseDescs:CourseDesc[],cookie:string){
 export async function main(){
     while(true){
         const {studentId,password,refreshInterval,ttshitu:{username:tusername,password:tpassword},courses}=getConfig()
-        const mainCookie=await getElectiveCookie(studentId,password)
-        const mainCourseInfos=await getCourseInfos(courses,mainCookie)
+        let mainCookie=await getElectiveCookie(studentId,password)
+        let mainCourseInfos=await getCourseInfos(courses,mainCookie)
         if(mainCourseInfos.length===0){
             log('Finished.')
             return
@@ -429,16 +428,10 @@ export async function main(){
             return
         }
         log('Main cookie verified.')
-        const startTime=Date.now()/1000
         let i=-1
         let j=-1
         while(true){
             await sleep(refreshInterval+Math.random())
-            const time=Date.now()/1000
-            if(time-startTime>sessionTimeLimit){
-                log('Session time limit reached.')
-                break
-            }
             j=(j+1)%cookiePool.length
             i=(i+1)%mainCourseInfos.length
             const courseInfos=courseInfoss[j]
@@ -459,7 +452,19 @@ export async function main(){
                     break
                 }
                 courseInfoss[j]=courseInfos
-                log(`Cookie ${j} renewed.`)
+                if(j!==0){
+                    log(`Cookie ${j} renewed.`)
+                }else{
+                    mainCookie=cookie
+                    mainCourseInfos=courseInfos
+                    log(`Main cookie renewed.`)
+                    const verifyResult=await verifyCookie(studentId,tusername,tpassword,mainCookie)
+                    if(verifyResult!==200){
+                        log(`${verifyResult}. Fail to verify main cookie.`)
+                        return
+                    }
+                    log('Main cookie verified.')
+                }
                 continue
             }else if(typeof getResult==='number'){
                 log(`${getResult}. Fail to get elected num.`)
