@@ -1,7 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 [
-    '../info/'
+    '../info/',
+    '../info/election-results/',
+    '../info/vcode-imgs/'
 ].map(val=>path.join(__dirname,val)).forEach(val=>{
     if(!fs.existsSync(val))fs.mkdirSync(val)
 })

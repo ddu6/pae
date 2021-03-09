@@ -3,7 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
 [
-    '../info/'
+    '../info/',
+    '../info/election-results/',
+    '../info/vcode-imgs/'
 ].map(val => path.join(__dirname, val)).forEach(val => {
     if (!fs.existsSync(val))
         fs.mkdirSync(val);
