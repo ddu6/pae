@@ -39,7 +39,7 @@ function getDate(){
     return [date.getMonth()+1,date.getDate()].map(val=>val.toString().padStart(2,'0')).join('-')+' '+[date.getHours(),date.getMinutes(),date.getSeconds()].map(val=>val.toString().padStart(2,'0')).join(':')+':'+date.getMilliseconds().toString().padStart(3,'0')
 }
 function semilog(msg:string|Error){
-    let string=getDate()+' '
+    let string=getDate()+'  '
     if(typeof msg!=='string'){
         const {stack}=msg
         if(stack!==undefined){
@@ -50,7 +50,7 @@ function semilog(msg:string|Error){
     }else{
         string+=msg
     }
-    string=string.replace(/\n */g,'\n                   ')
+    string=string.replace(/\n */g,'\n                    ')
     fs.appendFileSync(path.join(__dirname,'../info/semilog.txt'),string+'\n\n')
     return string
 }
