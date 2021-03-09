@@ -1,5 +1,6 @@
 # PKU Auto Elective
-- Require [`nodejs`](https://nodejs.org/).
+- Require [nodejs](https://nodejs.org/).
+- Require a [ttshitu](http://www.ttshitu.com/) account with enough money on it.
 
 ## Install
 ```
