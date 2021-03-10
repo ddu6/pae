@@ -487,7 +487,7 @@ async function main() {
         let i = -1;
         let j = -1;
         while (true) {
-            await sleep(refreshInterval + Math.random());
+            await sleep(refreshInterval);
             j = (j + 1) % cookiePool.length;
             i = (i + 1) % mainCourseInfos.length;
             const courseInfos = courseInfoss[j];
