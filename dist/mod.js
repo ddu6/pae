@@ -186,7 +186,10 @@ async function post(url, params = {}, cookie = '', referer = '') {
 }
 const electAndDropURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do';
 const homepageURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/help/HelpController.jpf';
-const recognizeErrLimit = 10;
+const errLimit = 10;
+const smallErrSleepTime = 1;
+const congestionSleepTime = 3;
+const bigErrSleepTime = 5;
 async function getLoginCookie(studentId, password, appId, appName, redirectURL) {
     let { cookie } = await get('https://iaaa.pku.edu.cn/iaaa/oauth.jsp', {
         appID: appId,
@@ -220,9 +223,18 @@ async function getLoginCookie(studentId, password, appId, appName, redirectURL) 
     return cookie;
 }
 async function getElectiveCookie(studentId, password) {
-    const cookie = await getLoginCookie(studentId, password, 'syllabus', '学生选课系统', 'http://elective.pku.edu.cn:80/elective2008/ssoLogin.do');
-    await get(homepageURL, {}, cookie);
-    return cookie;
+    for (let i = 0; i < errLimit; i++) {
+        try {
+            const cookie = await getLoginCookie(studentId, password, 'syllabus', '学生选课系统', 'http://elective.pku.edu.cn:80/elective2008/ssoLogin.do');
+            await get(homepageURL, {}, cookie);
+            return cookie;
+        }
+        catch (err) {
+            semilog(err);
+        }
+        await sleep(smallErrSleepTime);
+    }
+    throw new Error('Fail to get elective cookie.');
 }
 function htmlToCourseInfos(html) {
     const dom = new jsdom_1.JSDOM(html);
@@ -293,17 +305,36 @@ function htmlToCourseInfos(html) {
     return courseInfos;
 }
 async function getAllCourseInfos(cookie) {
-    const { body } = await get(electAndDropURL, {}, cookie, homepageURL);
-    return htmlToCourseInfos(body);
+    for (let i = 0; i < errLimit; i++) {
+        try {
+            const { body } = await get(electAndDropURL, {}, cookie, homepageURL);
+            return htmlToCourseInfos(body);
+        }
+        catch (err) {
+            semilog(err);
+        }
+        await sleep(smallErrSleepTime);
+    }
+    throw new Error('Fail to get all course infos.');
 }
 async function getElectedNum(index, seq, studentId, cookie) {
-    const { body } = await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do', {
-        index: index.toString(),
-        seq: seq,
-        xh: studentId
-    }, cookie, electAndDropURL);
     try {
-        const tmp = JSON.parse(body).electedNum;
+        const { body } = await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do', {
+            index: index.toString(),
+            seq: seq,
+            xh: studentId
+        }, cookie, electAndDropURL);
+        let tmp;
+        try {
+            tmp = JSON.parse(body).electedNum;
+        }
+        catch (err) {
+            semilog(err);
+            semilog(`Fail to parse ${body}.`);
+            if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录'))
+                return 400;
+            return 500;
+        }
         if (tmp === 'NA')
             return 503;
         if (tmp === 'NB')
@@ -317,9 +348,6 @@ async function getElectedNum(index, seq, studentId, cookie) {
     }
     catch (err) {
         semilog(err);
-        semilog(`Fail to parse ${body}.`);
-        if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录'))
-            return 400;
         return 500;
     }
 }
@@ -359,35 +387,49 @@ async function verifyVCode(vcode, studentId, cookie) {
     return 403;
 }
 async function verifyCookie(studentId, tusername, tpassowrd, cookie) {
-    for (let i = 0; i < recognizeErrLimit; i++) {
-        const img = await getVCodeImg(cookie);
-        let result = await recognizeVCodeImg(img, tusername, tpassowrd);
-        if (typeof result !== 'object')
-            return result;
-        const { vcode } = result;
-        log(`Recognized as ${vcode}.`);
-        result = await verifyVCode(vcode, studentId, cookie);
-        if (result === 200)
-            return 200;
-        await sleep(1);
+    for (let i = 0; i < errLimit; i++) {
+        try {
+            const img = await getVCodeImg(cookie);
+            let result = await recognizeVCodeImg(img, tusername, tpassowrd);
+            if (typeof result !== 'object') {
+                log(`${result}. Fail to recognize vcode img.`);
+                await sleep(smallErrSleepTime);
+                continue;
+            }
+            const { vcode } = result;
+            log(`Recognized as ${vcode}.`);
+            result = await verifyVCode(vcode, studentId, cookie);
+            if (result === 200)
+                return;
+        }
+        catch (err) {
+            semilog(err);
+        }
+        await sleep(smallErrSleepTime);
     }
-    return 500;
+    throw new Error('Fail to verify main cookie.');
 }
 async function electCourse(href, cookie) {
-    const { body } = await get(href, {}, cookie, electAndDropURL);
-    fs.writeFileSync(path.join(__dirname, `../info/election-results/${getDate()}.html`), body);
-    const dom = new jsdom_1.JSDOM(body);
-    const ele = dom.window.document.body.querySelector('#msgTips');
-    if (ele === null)
+    try {
+        const { body } = await get(href, {}, cookie, electAndDropURL);
+        fs.writeFileSync(path.join(__dirname, `../info/election-results/${getDate()}.html`), body);
+        const dom = new jsdom_1.JSDOM(body);
+        const ele = dom.window.document.body.querySelector('#msgTips');
+        if (ele === null)
+            return 500;
+        let msg = ele.textContent;
+        if (msg === null)
+            return 500;
+        msg = msg.trim();
+        log(msg);
+        if (msg.includes('成功'))
+            return 200;
         return 500;
-    let msg = ele.textContent;
-    if (msg === null)
+    }
+    catch (err) {
+        semilog(err);
         return 500;
-    msg = msg.trim();
-    log(msg);
-    if (msg.includes('成功'))
-        return 200;
-    return 500;
+    }
 }
 function getConfig() {
     const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), { encoding: 'utf8' }));
@@ -428,7 +470,7 @@ async function main() {
         log('Main cookie added.');
         const cookiePoolSize = Math.ceil(3 / refreshInterval);
         for (let j = 1; j < cookiePoolSize; j++) {
-            await sleep(1);
+            await sleep(smallErrSleepTime);
             const cookie = await getElectiveCookie(studentId, password);
             cookiePool.push(cookie);
             const courseInfos = await getCourseInfos(courses, cookie);
@@ -440,11 +482,7 @@ async function main() {
             log(`Cookie ${j} added.`);
         }
         log('All cookies added.');
-        const verifyResult = await verifyCookie(studentId, tusername, tpassword, mainCookie);
-        if (verifyResult !== 200) {
-            log(`${verifyResult}. Fail to verify main cookie.`);
-            return;
-        }
+        await verifyCookie(studentId, tusername, tpassword, mainCookie);
         log('Main cookie verified.');
         let i = -1;
         let j = -1;
@@ -458,7 +496,7 @@ async function main() {
             const getResult = await getElectedNum(index, seq, studentId, cookie);
             if (getResult === 503) {
                 log('Too frequent. Fail to get elected num.');
-                await sleep(3);
+                await sleep(congestionSleepTime);
                 continue;
             }
             else if (getResult === 400) {
@@ -478,18 +516,15 @@ async function main() {
                     mainCookie = cookie;
                     mainCourseInfos = courseInfos;
                     log(`Main cookie renewed.`);
-                    const verifyResult = await verifyCookie(studentId, tusername, tpassword, mainCookie);
-                    if (verifyResult !== 200) {
-                        log(`${verifyResult}. Fail to verify main cookie.`);
-                        return;
-                    }
+                    await verifyCookie(studentId, tusername, tpassword, mainCookie);
                     log('Main cookie verified.');
                 }
                 continue;
             }
             else if (typeof getResult === 'number') {
                 log(`${getResult}. Fail to get elected num.`);
-                return;
+                await sleep(bigErrSleepTime);
+                continue;
             }
             const { electedNum } = getResult;
             if (electedNum >= limit) {
@@ -500,16 +535,12 @@ async function main() {
             const electResult = await electCourse(href, mainCookie);
             if (electResult !== 200) {
                 log(`Fail to elect ${title} ${number} of ${department}.`);
-                const verifyResult = await verifyCookie(studentId, tusername, tpassword, mainCookie);
-                if (verifyResult !== 200) {
-                    log(`${verifyResult}. Fail to verify main cookie.`);
-                    return;
-                }
+                await verifyCookie(studentId, tusername, tpassword, mainCookie);
                 log('Main cookie verified.');
                 const electResult = await electCourse(href, mainCookie);
                 if (electResult !== 200) {
                     log(`Fail to elect ${title} ${number} of ${department}.`);
-                    return;
+                    continue;
                 }
             }
             if (mainCourseInfos.length === 1) {
