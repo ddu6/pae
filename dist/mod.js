@@ -186,7 +186,7 @@ async function getElectiveCookie(studentId, password) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const cookie = await getLoginCookie(studentId, password, 'syllabus', '学生选课系统', 'http://elective.pku.edu.cn:80/elective2008/ssoLogin.do');
-            await get(homepageURL, {}, cookie);
+            const { body } = await get(homepageURL, {}, cookie);
             return cookie;
         }
         catch (err) {
@@ -267,7 +267,7 @@ function htmlToCourseInfos(html) {
 async function getAllCourseInfos(cookie) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
-            const { body } = await get(electAndDropURL, {}, cookie, homepageURL);
+            const { body } = await get(electAndDropURL, { xh: init_1.config.studentId }, cookie, homepageURL);
             return htmlToCourseInfos(body);
         }
         catch (err) {
@@ -455,7 +455,7 @@ async function main() {
             const courseInfos = courseInfoss[j];
             const { cookie, startTime } = cookiePool[j];
             const { index, seq, limit, title, number, department } = courseInfos[i];
-            if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > startTime && j !== 0) {
+            if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > startTime) {
                 out(`Session ${j} retired.`);
                 const cookie = await getElectiveCookie(studentId, password);
                 cookiePool[j] = {
