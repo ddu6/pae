@@ -388,7 +388,7 @@ async function getCourseInfos(courseDescs:CourseDesc[],cookie:string){
     return courseInfos
 }
 export async function main(){
-    while(true){
+    first:while(true){
         const {studentId,password,refreshInterval,ttshitu:{username:tusername,password:tpassword},courses}=config
         let mainCookie=await getElectiveCookie(studentId,password)
         let mainCourseInfos=await getCourseInfos(courses,mainCookie)
@@ -414,7 +414,7 @@ export async function main(){
             const courseInfos=await getCourseInfos(courses,cookie)
             if(courseInfos.length!==mainCourseInfos.length){
                 out(`Please do not operate on elective by yourself unless all sessions are started.`)
-                return
+                continue first
             }
             courseInfoss.push(courseInfos)
             out(`Session ${j} started.`)
@@ -431,85 +431,69 @@ export async function main(){
             const courseInfos=courseInfoss[j]
             const {cookie,startTime}=cookiePool[j]
             const {index,seq,limit,title,number,department}=courseInfos[i]
-            if(Date.now()/1000-config.sessionDuration+Math.random()*300>startTime){
-                out(`Session ${j} retired.`)
-                const cookie=await getElectiveCookie(studentId,password)
-                cookiePool[j]={
-                    cookie:cookie,
-                    startTime:Date.now()/1000,
+            normal:{
+                if(Date.now()/1000-config.sessionDuration+Math.random()*300>startTime){
+                    out(`Session ${j} retired.`)
+                    break normal
                 }
-                const courseInfos=await getCourseInfos(courses,cookie)
-                if(courseInfos.length!==mainCourseInfos.length){
-                    out(`Courses to elect are changed.`)
-                    break
+                const getResult=await getElectedNum(index,seq,studentId,cookie)
+                if(getResult===503){
+                    out('Too frequent. Fail to get elected num.')
+                    await sleep(config.congestionSleep)
+                    continue
+                }else if(getResult===400){
+                    out(`Session ${j} expired.`)
+                    break normal
+                }else if(typeof getResult==='number'){
+                    out(`${getResult}. Fail to get elected num.`)
+                    await sleep(config.bigErrSleep)
+                    continue
                 }
-                courseInfoss[j]=courseInfos
-                if(j!==0){
-                    out(`Session ${j} renewed.`)
-                }else{
-                    mainCookie=cookie
-                    mainCourseInfos=courseInfos
-                    out(`Main session renewed.`)
-                    await verifySession(studentId,tusername,tpassword,mainCookie)
-                    out('Main session verified.')
+                const {electedNum}=getResult
+                if(electedNum>=limit){
+                    out(`No places avaliable for ${title} ${number} of ${department}.`)
+                    continue
                 }
-                continue
-            }
-            const getResult=await getElectedNum(index,seq,studentId,cookie)
-            if(getResult===503){
-                out('Too frequent. Fail to get elected num.')
-                await sleep(config.congestionSleep)
-                continue
-            }else if(getResult===400){
-                out(`Session ${j} expired.`)
-                const cookie=await getElectiveCookie(studentId,password)
-                cookiePool[j]={
-                    cookie:cookie,
-                    startTime:Date.now()/1000,
-                }
-                const courseInfos=await getCourseInfos(courses,cookie)
-                if(courseInfos.length!==mainCourseInfos.length){
-                    out(`Courses to elect are changed.`)
-                    break
-                }
-                courseInfoss[j]=courseInfos
-                if(j!==0){
-                    out(`Session ${j} renewed.`)
-                }else{
-                    mainCookie=cookie
-                    mainCourseInfos=courseInfos
-                    out(`Main session renewed.`)
-                    await verifySession(studentId,tusername,tpassword,mainCookie)
-                    out('Main session verified.')
-                }
-                continue
-            }else if(typeof getResult==='number'){
-                out(`${getResult}. Fail to get elected num.`)
-                await sleep(config.bigErrSleep)
-                continue
-            }
-            const {electedNum}=getResult
-            if(electedNum>=limit){
-                out(`No places avaliable for ${title} ${number} of ${department}.`)
-                continue
-            }
-            const {href}=mainCourseInfos[i]
-            const electResult=await electCourse(href,mainCookie)
-            if(electResult!==200){
-                out(`Fail to elect ${title} ${number} of ${department}.`)
-                await verifySession(studentId,tusername,tpassword,mainCookie)
-                out('Main session verified.')
+                const {href}=mainCourseInfos[i]
                 const electResult=await electCourse(href,mainCookie)
                 if(electResult!==200){
                     out(`Fail to elect ${title} ${number} of ${department}.`)
-                    continue
+                    await verifySession(studentId,tusername,tpassword,mainCookie)
+                    out('Main session verified.')
+                    const electResult=await electCourse(href,mainCookie)
+                    if(electResult!==200){
+                        out(`Fail to elect ${title} ${number} of ${department}.`)
+                        continue
+                    }
+                }
+                if(mainCourseInfos.length===1){
+                    out('Finished.')
+                    return
+                }
+                continue first
+            }
+            renew:{
+                const cookie=await getElectiveCookie(studentId,password)
+                cookiePool[j]={
+                    cookie:cookie,
+                    startTime:Date.now()/1000,
+                }
+                const courseInfos=await getCourseInfos(courses,cookie)
+                if(courseInfos.length!==mainCourseInfos.length){
+                    out(`Courses to elect are changed.`)
+                    continue first
+                }
+                courseInfoss[j]=courseInfos
+                if(j!==0){
+                    out(`Session ${j} renewed.`)
+                }else{
+                    mainCookie=cookie
+                    mainCourseInfos=courseInfos
+                    out(`Main session renewed.`)
+                    await verifySession(studentId,tusername,tpassword,mainCookie)
+                    out('Main session verified.')
                 }
             }
-            if(mainCourseInfos.length===1){
-                out('Finished.')
-                return
-            }
-            break
         }
     }
 }
