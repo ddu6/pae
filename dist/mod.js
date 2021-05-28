@@ -150,10 +150,6 @@ async function post(url, form = {}, cookie = '', referer = '') {
 }
 const electAndDropURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do';
 const homepageURL = 'https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/help/HelpController.jpf';
-const errLimit = 10;
-const smallErrSleepTime = 1;
-const congestionSleepTime = 3;
-const bigErrSleepTime = 5;
 async function getLoginCookie(studentId, password, appId, appName, redirectURL) {
     let { cookie } = await get('https://iaaa.pku.edu.cn/iaaa/oauth.jsp', {
         appID: appId,
@@ -187,7 +183,7 @@ async function getLoginCookie(studentId, password, appId, appName, redirectURL) 
     return cookie;
 }
 async function getElectiveCookie(studentId, password) {
-    for (let i = 0; i < errLimit; i++) {
+    for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const cookie = await getLoginCookie(studentId, password, 'syllabus', '学生选课系统', 'http://elective.pku.edu.cn:80/elective2008/ssoLogin.do');
             await get(homepageURL, {}, cookie);
@@ -196,7 +192,7 @@ async function getElectiveCookie(studentId, password) {
         catch (err) {
             log(err);
         }
-        await sleep(smallErrSleepTime);
+        await sleep(init_1.config.smallErrSleep);
     }
     throw new Error('Fail to get elective cookie.');
 }
@@ -269,7 +265,7 @@ function htmlToCourseInfos(html) {
     return courseInfos;
 }
 async function getAllCourseInfos(cookie) {
-    for (let i = 0; i < errLimit; i++) {
+    for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const { body } = await get(electAndDropURL, {}, cookie, homepageURL);
             return htmlToCourseInfos(body);
@@ -277,7 +273,7 @@ async function getAllCourseInfos(cookie) {
         catch (err) {
             log(err);
         }
-        await sleep(smallErrSleepTime);
+        await sleep(init_1.config.smallErrSleep);
     }
     throw new Error('Fail to get all course infos.');
 }
@@ -350,14 +346,14 @@ async function verifyVCode(vcode, studentId, cookie) {
         return 401;
     return 403;
 }
-async function verifyCookie(studentId, tusername, tpassowrd, cookie) {
-    for (let i = 0; i < errLimit; i++) {
+async function verifySession(studentId, tusername, tpassowrd, cookie) {
+    for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const img = await getVCodeImg(cookie);
             let result = await recognizeVCodeImg(img, tusername, tpassowrd);
             if (typeof result !== 'object') {
                 out(`${result}. Fail to recognize vcode img.`);
-                await sleep(smallErrSleepTime);
+                await sleep(init_1.config.smallErrSleep);
                 continue;
             }
             const { vcode } = result;
@@ -369,9 +365,9 @@ async function verifyCookie(studentId, tusername, tpassowrd, cookie) {
         catch (err) {
             log(err);
         }
-        await sleep(smallErrSleepTime);
+        await sleep(init_1.config.smallErrSleep);
     }
-    throw new Error('Fail to verify main cookie.');
+    throw new Error('Fail to verify main session.');
 }
 async function electCourse(href, cookie) {
     try {
@@ -425,25 +421,31 @@ async function main() {
             return;
         }
         out('Courses to elect:\n' + mainCourseInfos.map(val => val.title + ' ' + val.number + ' ' + val.department).join('\n'));
-        const cookiePool = [mainCookie];
+        const cookiePool = [{
+                cookie: mainCookie,
+                startTime: Date.now() / 1000,
+            }];
         const courseInfoss = [mainCourseInfos];
-        out('Main cookie added.');
+        out('Main session started.');
         const cookiePoolSize = Math.ceil(3 / refreshInterval);
         for (let j = 1; j < cookiePoolSize; j++) {
-            await sleep(smallErrSleepTime);
+            await sleep(init_1.config.smallErrSleep);
             const cookie = await getElectiveCookie(studentId, password);
-            cookiePool.push(cookie);
+            cookiePool.push({
+                cookie: cookie,
+                startTime: Date.now() / 1000,
+            });
             const courseInfos = await getCourseInfos(courses, cookie);
             if (courseInfos.length !== mainCourseInfos.length) {
-                out(`Please do not operate on elective by yourself unless all cookies are added.`);
+                out(`Please do not operate on elective by yourself unless all sessions are started.`);
                 return;
             }
             courseInfoss.push(courseInfos);
-            out(`Cookie ${j} added.`);
+            out(`Session ${j} started.`);
         }
-        out('All cookies added.');
-        await verifyCookie(studentId, tusername, tpassword, mainCookie);
-        out('Main cookie verified.');
+        out('All sessions started.');
+        await verifySession(studentId, tusername, tpassword, mainCookie);
+        out('Main session verified.');
         let i = -1;
         let j = -1;
         while (true) {
@@ -451,18 +453,15 @@ async function main() {
             j = (j + 1) % cookiePool.length;
             i = (i + 1) % mainCourseInfos.length;
             const courseInfos = courseInfoss[j];
-            const cookie = cookiePool[j];
+            const { cookie, startTime } = cookiePool[j];
             const { index, seq, limit, title, number, department } = courseInfos[i];
-            const getResult = await getElectedNum(index, seq, studentId, cookie);
-            if (getResult === 503) {
-                out('Too frequent. Fail to get elected num.');
-                await sleep(congestionSleepTime);
-                continue;
-            }
-            else if (getResult === 400) {
-                out(`Cookie ${j} expired.`);
+            if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > startTime && j !== 0) {
+                out(`Session ${j} retired.`);
                 const cookie = await getElectiveCookie(studentId, password);
-                cookiePool[j] = cookie;
+                cookiePool[j] = {
+                    cookie: cookie,
+                    startTime: Date.now() / 1000,
+                };
                 const courseInfos = await getCourseInfos(courses, cookie);
                 if (courseInfos.length !== mainCourseInfos.length) {
                     out(`Courses to elect are changed.`);
@@ -470,20 +469,51 @@ async function main() {
                 }
                 courseInfoss[j] = courseInfos;
                 if (j !== 0) {
-                    out(`Cookie ${j} renewed.`);
+                    out(`Session ${j} renewed.`);
                 }
                 else {
                     mainCookie = cookie;
                     mainCourseInfos = courseInfos;
-                    out(`Main cookie renewed.`);
-                    await verifyCookie(studentId, tusername, tpassword, mainCookie);
-                    out('Main cookie verified.');
+                    out(`Main session renewed.`);
+                    await verifySession(studentId, tusername, tpassword, mainCookie);
+                    out('Main session verified.');
+                }
+                continue;
+            }
+            const getResult = await getElectedNum(index, seq, studentId, cookie);
+            if (getResult === 503) {
+                out('Too frequent. Fail to get elected num.');
+                await sleep(init_1.config.congestionSleep);
+                continue;
+            }
+            else if (getResult === 400) {
+                out(`Session ${j} expired.`);
+                const cookie = await getElectiveCookie(studentId, password);
+                cookiePool[j] = {
+                    cookie: cookie,
+                    startTime: Date.now() / 1000,
+                };
+                const courseInfos = await getCourseInfos(courses, cookie);
+                if (courseInfos.length !== mainCourseInfos.length) {
+                    out(`Courses to elect are changed.`);
+                    break;
+                }
+                courseInfoss[j] = courseInfos;
+                if (j !== 0) {
+                    out(`Session ${j} renewed.`);
+                }
+                else {
+                    mainCookie = cookie;
+                    mainCourseInfos = courseInfos;
+                    out(`Main session renewed.`);
+                    await verifySession(studentId, tusername, tpassword, mainCookie);
+                    out('Main session verified.');
                 }
                 continue;
             }
             else if (typeof getResult === 'number') {
                 out(`${getResult}. Fail to get elected num.`);
-                await sleep(bigErrSleepTime);
+                await sleep(init_1.config.bigErrSleep);
                 continue;
             }
             const { electedNum } = getResult;
@@ -495,8 +525,8 @@ async function main() {
             const electResult = await electCourse(href, mainCookie);
             if (electResult !== 200) {
                 out(`Fail to elect ${title} ${number} of ${department}.`);
-                await verifyCookie(studentId, tusername, tpassword, mainCookie);
-                out('Main cookie verified.');
+                await verifySession(studentId, tusername, tpassword, mainCookie);
+                out('Main session verified.');
                 const electResult = await electCourse(href, mainCookie);
                 if (electResult !== 200) {
                     out(`Fail to elect ${title} ${number} of ${department}.`);
