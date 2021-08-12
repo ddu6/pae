@@ -1,15 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = void 0;
-const fs = require("fs");
-const path = require("path");
+const fs_1 = require("fs");
+const path_1 = require("path");
 [
     '../info/',
     '../info/election-results/',
     '../info/vcode-imgs/'
-].map(val => path.join(__dirname, val)).forEach(val => {
-    if (!fs.existsSync(val))
-        fs.mkdirSync(val);
+].map(val => path_1.join(__dirname, val)).forEach(val => {
+    if (!fs_1.existsSync(val)) {
+        fs_1.mkdirSync(val);
+    }
 });
 exports.config = {
     studentId: "1x000xxxxx",
@@ -37,8 +38,12 @@ exports.config = {
     smallErrSleep: 1,
     congestionSleep: 3,
     bigErrSleep: 5,
-    timeout: 30,
+    requestTimeout: 30,
 };
-const path0 = path.join(__dirname, '../config.json');
-if (!fs.existsSync(path0))
-    fs.writeFileSync(path0, JSON.stringify(exports.config, null, 4));
+const path = path_1.join(__dirname, '../config.json');
+if (!fs_1.existsSync(path)) {
+    fs_1.writeFileSync(path, JSON.stringify(exports.config, undefined, 4));
+}
+else {
+    Object.assign(exports.config, JSON.parse(fs_1.readFileSync(path, { encoding: 'utf8' })));
+}

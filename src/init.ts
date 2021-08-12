@@ -1,11 +1,13 @@
-import * as fs from 'fs'
-import * as path from 'path'
+import {existsSync,mkdirSync,writeFileSync,readFileSync} from 'fs'
+import {join} from 'path'
 [
     '../info/',
     '../info/election-results/',
     '../info/vcode-imgs/'
-].map(val=>path.join(__dirname,val)).forEach(val=>{
-    if(!fs.existsSync(val))fs.mkdirSync(val)
+].map(val=>join(__dirname,val)).forEach(val=>{
+    if(!existsSync(val)){
+        mkdirSync(val)
+    }
 })
 export const config={
     studentId:"1x000xxxxx",
@@ -33,7 +35,11 @@ export const config={
     smallErrSleep:1,
     congestionSleep:3,
     bigErrSleep:5,
-    timeout:30,
+    requestTimeout:30,
 }
-const path0=path.join(__dirname,'../config.json')
-if(!fs.existsSync(path0))fs.writeFileSync(path0,JSON.stringify(config,null,4))
+const path=join(__dirname,'../config.json')
+if(!existsSync(path)){
+    writeFileSync(path,JSON.stringify(config,undefined,4))
+}else{
+    Object.assign(config,JSON.parse(readFileSync(path,{encoding:'utf8'})))
+}
