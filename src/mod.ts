@@ -81,7 +81,9 @@ async function getElectiveCookie(studentId:string,password:string){
             await get(homepageURL,{},cookie)
             return cookie
         }catch(err){
-            clit.log(err)
+            if(err instanceof Error){
+                clit.log(err)
+            }
         }
         await sleep(config.smallErrSleep)
     }
@@ -173,7 +175,9 @@ async function getAllCourseInfos(cookie:string){
             const {body}=await get(electAndDropURL,{xh:config.studentId},cookie,homepageURL)
             return htmlToCourseInfos(body)
         }catch(err){
-            clit.log(err)
+            if(err instanceof Error){
+                clit.log(err)
+            }
         }
         await sleep(config.smallErrSleep)
     }
@@ -190,7 +194,9 @@ async function getElectedNum(index:number,seq:string,studentId:string,cookie:str
         try{
             tmp=JSON.parse(body).electedNum
         }catch(err){
-            clit.log(err)
+            if(err instanceof Error){
+                clit.log(err)
+            }
             clit.log(`Fail to parse ${body}`)
             if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
                 return 400
@@ -211,7 +217,9 @@ async function getElectedNum(index:number,seq:string,studentId:string,cookie:str
             electedNum:electedNum
         }
     }catch(err){
-        clit.log(err)
+        if(err instanceof Error){
+            clit.log(err)
+        }
         return 500
     }
 }
@@ -271,7 +279,9 @@ async function verifySession(studentId:string,tusername:string,tpassowrd:string,
                 return
             }
         }catch(err){
-            clit.log(err)
+            if(err instanceof Error){
+                clit.log(err)
+            }
         }
         await sleep(config.smallErrSleep)
     }
@@ -297,8 +307,9 @@ async function electCourse(href:string,cookie:string){
         }
         return 500
     }catch(err){
-        clit.log(err)
-        return 500
+        if(err instanceof Error){
+            clit.log(err)
+        }
     }
 }
 async function getCourseInfos(courseDescs:CourseDesc[],cookie:string){

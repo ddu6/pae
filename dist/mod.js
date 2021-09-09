@@ -71,7 +71,9 @@ async function getElectiveCookie(studentId, password) {
             return cookie;
         }
         catch (err) {
-            clit.log(err);
+            if (err instanceof Error) {
+                clit.log(err);
+            }
         }
         await sleep(init_1.config.smallErrSleep);
     }
@@ -164,7 +166,9 @@ async function getAllCourseInfos(cookie) {
             return htmlToCourseInfos(body);
         }
         catch (err) {
-            clit.log(err);
+            if (err instanceof Error) {
+                clit.log(err);
+            }
         }
         await sleep(init_1.config.smallErrSleep);
     }
@@ -182,7 +186,9 @@ async function getElectedNum(index, seq, studentId, cookie) {
             tmp = JSON.parse(body).electedNum;
         }
         catch (err) {
-            clit.log(err);
+            if (err instanceof Error) {
+                clit.log(err);
+            }
             clit.log(`Fail to parse ${body}`);
             if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
                 return 400;
@@ -204,7 +210,9 @@ async function getElectedNum(index, seq, studentId, cookie) {
         };
     }
     catch (err) {
-        clit.log(err);
+        if (err instanceof Error) {
+            clit.log(err);
+        }
         return 500;
     }
 }
@@ -265,7 +273,9 @@ async function verifySession(studentId, tusername, tpassowrd, cookie) {
             }
         }
         catch (err) {
-            clit.log(err);
+            if (err instanceof Error) {
+                clit.log(err);
+            }
         }
         await sleep(init_1.config.smallErrSleep);
     }
@@ -292,8 +302,9 @@ async function electCourse(href, cookie) {
         return 500;
     }
     catch (err) {
-        clit.log(err);
-        return 500;
+        if (err instanceof Error) {
+            clit.log(err);
+        }
     }
 }
 async function getCourseInfos(courseDescs, cookie) {
