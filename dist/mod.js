@@ -398,8 +398,9 @@ async function main() {
         let electing = false;
         for (let i = 0; i < init_1.config.courses.length; i++) {
             const session = await getSession();
-            const courseInfo0 = getCourseInfo(session, init_1.config.courses[i]);
-            const courseInfo1 = getCourseInfo(init_1.sessions.main, init_1.config.courses[i]);
+            const courseDesc = init_1.config.courses[i];
+            const courseInfo0 = getCourseInfo(session, courseDesc);
+            const courseInfo1 = getCourseInfo(init_1.sessions.main, courseDesc);
             if (courseInfo0 === undefined || courseInfo1 === undefined) {
                 init_1.config.courses.splice(i, 1);
                 init_1.saveConfig();

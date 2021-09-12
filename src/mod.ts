@@ -400,8 +400,9 @@ export async function main(){
         let electing=false
         for(let i=0;i<config.courses.length;i++){
             const session=await getSession()
-            const courseInfo0=getCourseInfo(session,config.courses[i])
-            const courseInfo1=getCourseInfo(sessions.main,config.courses[i])
+            const courseDesc=config.courses[i]
+            const courseInfo0=getCourseInfo(session,courseDesc)
+            const courseInfo1=getCourseInfo(sessions.main,courseDesc)
             if(courseInfo0===undefined||courseInfo1===undefined){
                 config.courses.splice(i,1)
                 saveConfig()
