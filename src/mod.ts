@@ -3,10 +3,7 @@ import {join} from 'path'
 import {JSDOM} from 'jsdom'
 import {CLIT} from '@ddu6/cli-tools'
 import {config, CourseInfo, saveConfig, saveSessions, Session, sessions} from './init'
-const clit=new CLIT(__dirname,{
-    requestTimeout:config.requestTimeout
-})
-const pclit=new CLIT(__dirname,config)
+const clit=new CLIT(__dirname,config)
 async function sleep(time:number){
     await new Promise(resolve=>{
         setTimeout(resolve,time*1000)
@@ -26,29 +23,15 @@ async function post(url:string,form:Record<string,string>={},cookie='',referer='
     }
     return result
 }
-async function pget(url:string,params:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
-    const result=await (cookie===sessions.main.cookie?clit:pclit).request(url,params,{},cookie,referer,undefined,requestTimeout)
-    if(typeof result==='number'){
-        throw new Error(`${result}, fail to get ${url}`)
-    }
-    return result
-}
-async function ppost(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
-    const result=await (cookie===sessions.main.cookie?clit:pclit).request(url,{},form,cookie,referer,undefined,requestTimeout)
-    if(typeof result==='number'){
-        throw new Error(`${result}, fail to post ${url}`)
-    }
-    return result
-}
-const electAndDropURL='https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do'
+const electAndDropURL='https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/SupplyCancel.do?xh='+config.studentId
 const homepageURL='https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/help/HelpController.jpf'
-async function getLoginCookie(studentId:string,password:string,appId:string,appName:string,redirectURL:string,proxy?:boolean){
-    let {cookie}=await (proxy?pget:get)('https://iaaa.pku.edu.cn/iaaa/oauth.jsp',{
+async function getLoginCookie(studentId:string,password:string,appId:string,appName:string,redirectURL:string){
+    let {cookie}=await get('https://iaaa.pku.edu.cn/iaaa/oauth.jsp',{
         appID:appId,
         appName:appName,
         redirectUrl:redirectURL
     })
-    const {body}=await (proxy?ppost:post)('https://iaaa.pku.edu.cn/iaaa/oauthlogin.do',{
+    const {body}=await post('https://iaaa.pku.edu.cn/iaaa/oauthlogin.do',{
         appid:appId,
         userName:studentId,
         password:password,
@@ -61,7 +44,7 @@ async function getLoginCookie(studentId:string,password:string,appId:string,appN
     if(typeof token!=='string'){
         throw new Error(`Fail to get login cookie of app ${appId}`)
     }
-    const res=await (proxy?pget:get)(redirectURL,{
+    const res=await get(redirectURL,{
         _rand:Math.random().toString(),
         token:token
     })
@@ -74,14 +57,14 @@ async function getLoginCookie(studentId:string,password:string,appId:string,appN
     if(location===undefined){
         return cookie
     }
-    cookie=`${(await (proxy?pget:get)(location,{},cookie,redirectURL)).cookie}; ${cookie}`
+    cookie=`${(await get(location,{},cookie,redirectURL)).cookie}; ${cookie}`
     return cookie
 }
-async function getElectiveCookie(proxy?:boolean){
+async function getElectiveCookie(){
     for(let i=0;i<config.errLimit;i++){
         try{
-            const cookie=await getLoginCookie(config.studentId,config.password,'syllabus','学生选课系统','http://elective.pku.edu.cn:80/elective2008/ssoLogin.do',proxy)
-            await (proxy?pget:get)(homepageURL,{},cookie)
+            const cookie=await getLoginCookie(config.studentId,config.password,'syllabus','学生选课系统','http://elective.pku.edu.cn:80/elective2008/ssoLogin.do')
+            await get(homepageURL,{},cookie)
             return cookie
         }catch(err){
             if(err instanceof Error){
@@ -175,7 +158,7 @@ function htmlToCourseInfoArray(html:string){
 async function getCourseInfoArray(cookie:string){
     for(let i=0;i<config.errLimit;i++){
         try{
-            const {body}=await pget(electAndDropURL,{xh:config.studentId},cookie,homepageURL)
+            const {body}=await get(electAndDropURL,{},cookie,homepageURL)
             if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
                 clit.out('Timeout')
                 return 504
@@ -192,7 +175,7 @@ async function getCourseInfoArray(cookie:string){
 }
 async function getElectedNum(index:number,seq:string,cookie:string){
     try{
-        const {body}=await ppost('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do',{
+        const {body}=await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do',{
             index:index.toString(),
             seq,
             xh:config.studentId
@@ -223,7 +206,7 @@ async function getElectedNum(index:number,seq:string,cookie:string){
     }
 }
 async function getVCodeImg(cookie:string){
-    const {buffer,body}=await pget(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random()*10000)}`,{},cookie,electAndDropURL)
+    const {buffer,body}=await get(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random()*10000)}`,{},cookie,electAndDropURL)
     if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
         clit.out('Timeout')
         return 504
@@ -252,7 +235,7 @@ async function recognizeVCodeImg(base64Img:string){
     return result
 }
 async function verifyVCode(vcode:string,cookie:string){
-    const {body}=await ppost('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/validate.do',{
+    const {body}=await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/validate.do',{
         xh:config.studentId,
         validCode:vcode
     },cookie,electAndDropURL)
@@ -294,7 +277,7 @@ async function verifySession(cookie:string){
 }
 async function electCourse(href:string,cookie:string){
     try{
-        const {body}=await pget(href,{},cookie,electAndDropURL)
+        const {body}=await get(href,{},cookie,electAndDropURL)
         writeFileSync(join(__dirname,`../info/election-results/${CLIT.getDate()} ${CLIT.getTime()}.html`),body)
         if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
             clit.out('Timeout')
@@ -350,8 +333,8 @@ function getCourseInfo(session:Session,{title,number,department}:CourseDesc){
     }
     return undefined
 }
-async function createSession(main?:boolean):Promise<Session>{
-    const cookie=await getElectiveCookie(main)
+async function createSession():Promise<Session>{
+    const cookie=await getElectiveCookie()
     const courseInfoArray=await getCourseInfoArray(cookie)
     if(courseInfoArray===504){
         throw new Error('Fail to create session')
@@ -378,7 +361,7 @@ async function updateSession(session:Session){
     return 200
 }
 async function renewSession(session:Session){
-    Object.assign(session,await createSession(session===sessions.main))
+    Object.assign(session,await createSession())
     saveSessions()
     if(session===sessions.main){
         if(await verifySession(session.cookie)===504){
@@ -417,15 +400,16 @@ export async function main(){
         let electing=false
         for(let i=0;i<config.courses.length;i++){
             const session=await getSession()
-            const courseInfo=getCourseInfo(session,config.courses[i])
-            if(courseInfo===undefined){
+            const courseInfo0=getCourseInfo(session,config.courses[i])
+            const courseInfo1=getCourseInfo(sessions.main,config.courses[i])
+            if(courseInfo0===undefined||courseInfo1===undefined){
                 config.courses.splice(i,1)
                 saveConfig()
                 i--
                 continue
             }
             promises.push((async ()=>{
-                const result0=await getElectedNum(courseInfo.index,courseInfo.seq,session.cookie)
+                const result0=await getElectedNum(courseInfo0.index,courseInfo0.seq,session.cookie)
                 if(result0===503){
                     clit.out('Too frequent')
                     await sleep(config.congestionSleep)
@@ -446,29 +430,29 @@ export async function main(){
                     return
                 }
                 const {data}=result0
-                if(data>=courseInfo.limit){
-                    clit.out(`No places avaliable for ${courseInfo.title}`)
+                if(data>=courseInfo0.limit){
+                    clit.out(`No places avaliable for ${courseInfo0.title}`)
                     return
                 }
                 if(electing){
                     return
                 }
                 electing=true
-                const result1=await electCourse(courseInfo.href,sessions.main.cookie)
+                const result1=await electCourse(courseInfo1.href,sessions.main.cookie)
                 if(result1===504){
-                    clit.out(`Fail to elect ${courseInfo.title}`)
+                    clit.out(`Fail to elect ${courseInfo1.title}`)
                     await renewSession(sessions.main)
                     return
                 }
                 if(result1===500){
-                    clit.out(`Fail to elect ${courseInfo.title}`)
+                    clit.out(`Fail to elect ${courseInfo1.title}`)
                     if(await verifySession(sessions.main.cookie)===504){
                         await renewSession(sessions.main)
                         return
                     }
-                    const result=await electCourse(courseInfo.href,sessions.main.cookie)
+                    const result=await electCourse(courseInfo1.href,sessions.main.cookie)
                     if(result===500||result===504){
-                        clit.out(`Fail to elect ${courseInfo.title}`)
+                        clit.out(`Fail to elect ${courseInfo1.title}`)
                         await renewSession(sessions.main)
                         return
                     }
