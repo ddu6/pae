@@ -369,14 +369,17 @@ async function renewSession(session:Session){
         }
     }
 }
-let sessionIndex=0
+let sessionIndex=-1
 async function getSession(){
-    const session=sessions.others[sessionIndex++%sessions.others.length]
+    sessionIndex=(sessionIndex+1)%(sessions.others.length+1)
+    let session:Session
+    if(sessionIndex===0){
+        session=sessions.main
+    }else{
+        session=sessions.others[sessionIndex-1]
+    }
     if(Date.now()/1000-config.sessionDuration+Math.random()*300>session.start){
         await renewSession(session)
-    }
-    if(Date.now()/1000-config.sessionDuration+Math.random()*300>sessions.main.start){
-        await renewSession(sessions.main)
     }
     return session
 }
@@ -387,8 +390,8 @@ export async function main(){
     }
     sessions.others=sessions.others.filter(
         val=>Date.now()/1000-config.sessionDuration+Math.random()*300<=val.start
-    ).slice(0,sessionNum)
-    for(let i=0;i<sessionNum-sessions.others.length;i++){
+    ).slice(0,sessionNum-1)
+    for(let i=0;i<sessionNum-1-sessions.others.length;i++){
         sessions.others.push(await createSession())
         saveSessions()
     }
