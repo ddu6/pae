@@ -278,11 +278,11 @@ async function verifySession(cookie:string){
 async function electCourse(href:string,cookie:string){
     try{
         const {body}=await get(href,{},cookie,electAndDropURL)
+        writeFileSync(join(__dirname,`../info/election-results/${CLIT.getDate()} ${CLIT.getTime()}.html`),body)
         if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
             clit.out('Timeout')
             return 504
         }
-        writeFileSync(join(__dirname,`../info/election-results/${CLIT.getDate()} ${CLIT.getTime()}.html`),body)
         const dom=new JSDOM(body)
         const ele=dom.window.document.body.querySelector('#msgTips')
         if(ele===null){
