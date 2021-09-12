@@ -344,17 +344,20 @@ function getCourseInfo(session:Session,{title,number,department}:CourseDesc){
     return undefined
 }
 async function createSession():Promise<Session>{
-    const cookie=await getElectiveCookie()
-    const courseInfoArray=await getCourseInfoArray(cookie)
-    if(courseInfoArray===504){
-        throw new Error('Fail to create session')
+    for(let i=0;i<config.errLimit;i++){
+        const cookie=await getElectiveCookie()
+        const courseInfoArray=await getCourseInfoArray(cookie)
+        if(courseInfoArray!==504){
+            clit.out('New session')
+            return {
+                cookie,
+                start:Date.now()/1000,
+                courseInfoArray,
+            }
+        }
+        await sleep(config.errSleep)
     }
-    clit.out('New session')
-    return {
-        cookie,
-        start:Date.now()/1000,
-        courseInfoArray,
-    }
+    throw new Error('Fail to create session')
 }
 async function updateSession(session:Session){
     const result=await getCourseInfoArray(session.cookie)
@@ -371,13 +374,18 @@ async function updateSession(session:Session){
     return 200
 }
 async function renewSession(session:Session){
-    Object.assign(session,await createSession())
-    saveSessions()
-    if(session===sessions.main){
-        if(await verifySession(session.cookie)===504){
-            throw new Error('Fail to renew session')
+    for(let i=0;i<config.errLimit;i++){
+        Object.assign(session,await createSession())
+        saveSessions()
+        if(session!==sessions.main){
+            return
         }
+        if(await verifySession(session.cookie)!==504){
+            return
+        }
+        await sleep(config.errSleep)
     }
+    throw new Error('Fail to renew session')
 }
 let sessionIndex=-1
 async function getSession(){
