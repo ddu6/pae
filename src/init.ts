@@ -32,9 +32,8 @@ export const config={
     sessionDuration:1800,
     refreshInterval:3,
     errLimit:100,
-    smallErrSleep:1,
+    errSleep:1,
     congestionSleep:3,
-    bigErrSleep:5,
     requestTimeout:30,
     getElectedNumTimeout:2,
 }

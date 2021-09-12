@@ -85,7 +85,7 @@ async function getElectiveCookie(studentId:string,password:string){
                 clit.log(err)
             }
         }
-        await sleep(config.smallErrSleep)
+        await sleep(config.errSleep)
     }
     throw new Error('Fail to get elective cookie')
 }
@@ -179,7 +179,7 @@ async function getAllCourseInfos(cookie:string){
                 clit.log(err)
             }
         }
-        await sleep(config.smallErrSleep)
+        await sleep(config.errSleep)
     }
     throw new Error('Fail to get all course infos')
 }
@@ -269,7 +269,7 @@ async function verifySession(studentId:string,tusername:string,tpassowrd:string,
             let result=await recognizeVCodeImg(img,tusername,tpassowrd)
             if(typeof result!=='object'){
                 clit.out(`${result}, fail to recognize vcode img`)
-                await sleep(config.smallErrSleep)
+                await sleep(config.errSleep)
                 continue
             }
             const {vcode}=result
@@ -283,7 +283,7 @@ async function verifySession(studentId:string,tusername:string,tpassowrd:string,
                 clit.log(err)
             }
         }
-        await sleep(config.smallErrSleep)
+        await sleep(config.errSleep)
     }
     throw new Error('Fail to verify main session')
 }
@@ -353,7 +353,7 @@ export async function main(){
         clit.out('Main session started')
         const cookiePoolSize=Math.ceil(3/refreshInterval)
         for(let j=1;j<cookiePoolSize;j++){
-            await sleep(config.smallErrSleep)
+            await sleep(config.errSleep)
             const cookie=await getElectiveCookie(studentId,password)
             cookiePool.push({
                 cookie:cookie,
@@ -394,7 +394,6 @@ export async function main(){
                     break normal
                 }else if(typeof getResult==='number'){
                     clit.out(`${getResult}, fail to get elected num`)
-                    await sleep(config.bigErrSleep)
                     continue
                 }
                 const {electedNum}=getResult
