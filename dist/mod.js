@@ -285,11 +285,11 @@ async function verifySession(cookie) {
 async function electCourse(href, cookie) {
     try {
         const { body } = await get(href, {}, cookie, electAndDropURL);
-        fs_1.writeFileSync(path_1.join(__dirname, `../info/election-results/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
         if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
             clit.out('Timeout');
             return 504;
         }
+        fs_1.writeFileSync(path_1.join(__dirname, `../info/election-results/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
         const dom = new jsdom_1.JSDOM(body);
         const ele = dom.window.document.body.querySelector('#msgTips');
         if (ele === null) {
