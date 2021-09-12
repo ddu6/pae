@@ -36,6 +36,7 @@ export const config={
     congestionSleep:3,
     requestTimeout:30,
     getElectedNumTimeout:3,
+    recognizeTimeout:5,
 }
 export interface CourseInfo{
     title:string

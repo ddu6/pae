@@ -226,7 +226,7 @@ async function recognizeVCodeImg(base64Img) {
         password: init_1.config.ttshitu.password,
         typeid: '4',
         image: base64Img
-    });
+    }, '', '', init_1.config.recognizeTimeout);
     const { success, message, data } = JSON.parse(body);
     if (!success) {
         if (typeof message === 'string') {
@@ -368,18 +368,14 @@ async function renewSession(session) {
         }
     }
 }
-let sessionIndex = -1;
+let sessionIndex = 0;
 async function getSession() {
-    sessionIndex = (sessionIndex + 1) % (init_1.sessions.others.length + 1);
-    let session;
-    if (sessionIndex === 0) {
-        session = init_1.sessions.main;
-    }
-    else {
-        session = init_1.sessions.others[sessionIndex - 1];
-    }
+    const session = init_1.sessions.others[sessionIndex++ % init_1.sessions.others.length];
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > session.start) {
         await renewSession(session);
+    }
+    if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
+        await renewSession(init_1.sessions.main);
     }
     return session;
 }
@@ -388,8 +384,8 @@ async function main() {
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
         await renewSession(init_1.sessions.main);
     }
-    init_1.sessions.others = init_1.sessions.others.filter(val => Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= val.start).slice(0, sessionNum - 1);
-    for (let i = 0; i < sessionNum - 1 - init_1.sessions.others.length; i++) {
+    init_1.sessions.others = init_1.sessions.others.filter(val => Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= val.start).slice(0, sessionNum);
+    for (let i = 0; i < sessionNum - init_1.sessions.others.length; i++) {
         init_1.sessions.others.push(await createSession());
         init_1.saveSessions();
     }

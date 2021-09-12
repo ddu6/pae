@@ -39,6 +39,7 @@ exports.config = {
     congestionSleep: 3,
     requestTimeout: 30,
     getElectedNumTimeout: 3,
+    recognizeTimeout: 5,
 };
 exports.sessions = {
     main: {
