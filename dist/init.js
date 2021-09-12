@@ -38,7 +38,7 @@ exports.config = {
     errSleep: 1,
     congestionSleep: 3,
     requestTimeout: 30,
-    getElectedNumTimeout: 2,
+    getElectedNumTimeout: 3,
 };
 const path = path_1.join(__dirname, '../config.json');
 if (!fs_1.existsSync(path)) {
