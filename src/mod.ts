@@ -3,7 +3,10 @@ import {join} from 'path'
 import {JSDOM} from 'jsdom'
 import {CLIT} from '@ddu6/cli-tools'
 import {config, CourseInfo, saveConfig, saveSessions, Session, sessions} from './init'
-const clit=new CLIT(__dirname,config)
+const clit=new CLIT(__dirname,{
+    requestTimeout:config.requestTimeout
+})
+const pclit=new CLIT(__dirname,config)
 async function sleep(time:number){
     await new Promise(resolve=>{
         setTimeout(resolve,time*1000)
@@ -18,6 +21,13 @@ async function get(url:string,params:Record<string,string>={},cookie='',referer=
 }
 async function post(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
     const result=await clit.request(url,{},form,cookie,referer,undefined,requestTimeout)
+    if(typeof result==='number'){
+        throw new Error(`${result}, fail to post ${url}`)
+    }
+    return result
+}
+async function ppost(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
+    const result=await pclit.request(url,{},form,cookie,referer,undefined,requestTimeout)
     if(typeof result==='number'){
         throw new Error(`${result}, fail to post ${url}`)
     }
@@ -175,7 +185,7 @@ async function getCourseInfoArray(cookie:string){
 }
 async function getElectedNum(index:number,seq:string,cookie:string){
     try{
-        const {body}=await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do',{
+        const {body}=await ppost('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do',{
             index:index.toString(),
             seq,
             xh:config.studentId
@@ -215,7 +225,7 @@ async function getVCodeImg(cookie:string){
     return buffer.toString('base64')
 }
 async function recognizeVCodeImg(base64Img:string){
-    const {body}=await post('https://api.ttshitu.com/base64',{
+    const {body}=await ppost('https://api.ttshitu.com/base64',{
         username:config.ttshitu.username,
         password:config.ttshitu.password,
         typeid:'4',

@@ -6,7 +6,10 @@ const path_1 = require("path");
 const jsdom_1 = require("jsdom");
 const cli_tools_1 = require("@ddu6/cli-tools");
 const init_1 = require("./init");
-const clit = new cli_tools_1.CLIT(__dirname, init_1.config);
+const clit = new cli_tools_1.CLIT(__dirname, {
+    requestTimeout: init_1.config.requestTimeout
+});
+const pclit = new cli_tools_1.CLIT(__dirname, init_1.config);
 async function sleep(time) {
     await new Promise(resolve => {
         setTimeout(resolve, time * 1000);
@@ -21,6 +24,13 @@ async function get(url, params = {}, cookie = '', referer = '', requestTimeout) 
 }
 async function post(url, form = {}, cookie = '', referer = '', requestTimeout) {
     const result = await clit.request(url, {}, form, cookie, referer, undefined, requestTimeout);
+    if (typeof result === 'number') {
+        throw new Error(`${result}, fail to post ${url}`);
+    }
+    return result;
+}
+async function ppost(url, form = {}, cookie = '', referer = '', requestTimeout) {
+    const result = await pclit.request(url, {}, form, cookie, referer, undefined, requestTimeout);
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to post ${url}`);
     }
@@ -180,7 +190,7 @@ async function getCourseInfoArray(cookie) {
 }
 async function getElectedNum(index, seq, cookie) {
     try {
-        const { body } = await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do', {
+        const { body } = await ppost('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do', {
             index: index.toString(),
             seq,
             xh: init_1.config.studentId
@@ -221,7 +231,7 @@ async function getVCodeImg(cookie) {
     return buffer.toString('base64');
 }
 async function recognizeVCodeImg(base64Img) {
-    const { body } = await post('https://api.ttshitu.com/base64', {
+    const { body } = await ppost('https://api.ttshitu.com/base64', {
         username: init_1.config.ttshitu.username,
         password: init_1.config.ttshitu.password,
         typeid: '4',
