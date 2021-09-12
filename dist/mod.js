@@ -330,6 +330,9 @@ async function createSession() {
 }
 async function renewSession(session) {
     Object.assign(session, await createSession());
+    if (session === init_1.sessions.main) {
+        await verifySession(session.cookie);
+    }
 }
 let sessionIndex = -1;
 async function getSession() {
@@ -349,8 +352,7 @@ async function getSession() {
 async function main() {
     const sessionNum = Math.ceil(3 / init_1.config.refreshInterval) * init_1.config.courses.length;
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
-        init_1.sessions.main = await createSession();
-        await verifySession(init_1.sessions.main.cookie);
+        await renewSession(init_1.sessions.main);
     }
     init_1.sessions.others = init_1.sessions.others.filter(val => Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= val.start).slice(0, sessionNum - 1);
     for (let i = 0; i < sessionNum - 1 - init_1.sessions.others.length; i++) {
@@ -414,6 +416,7 @@ async function main() {
             clit.out('Finished');
             return;
         }
+        await sleep(init_1.config.refreshInterval);
     }
 }
 exports.main = main;

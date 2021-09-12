@@ -331,6 +331,9 @@ async function createSession():Promise<Session>{
 }
 async function renewSession(session:Session){
     Object.assign(session,await createSession())
+    if(session===sessions.main){
+        await verifySession(session.cookie)
+    }
 }
 let sessionIndex=-1
 async function getSession(){
@@ -349,8 +352,7 @@ async function getSession(){
 export async function main(){
     const sessionNum=Math.ceil(3/config.refreshInterval)*config.courses.length
     if(Date.now()/1000-config.sessionDuration+Math.random()*300>sessions.main.start){
-        sessions.main=await createSession()
-        await verifySession(sessions.main.cookie)
+        await renewSession(sessions.main)
     }
     sessions.others=sessions.others.filter(
         val=>Date.now()/1000-config.sessionDuration+Math.random()*300<=val.start
@@ -416,5 +418,6 @@ export async function main(){
             clit.out('Finished')
             return
         }
+        await sleep(config.refreshInterval)
     }
 }
