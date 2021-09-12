@@ -163,6 +163,10 @@ async function getCourseInfoArray(cookie) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const { body } = await get(electAndDropURL, { xh: init_1.config.studentId }, cookie, homepageURL);
+            if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
+                clit.out('Timeout');
+                return 504;
+            }
             return htmlToCourseInfoArray(body);
         }
         catch (err) {
@@ -182,14 +186,15 @@ async function getElectedNum(index, seq, cookie) {
             xh: init_1.config.studentId
         }, cookie, electAndDropURL, init_1.config.getElectedNumTimeout);
         if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
-            return 400;
+            clit.out('Timeout');
+            return 504;
         }
         const result = JSON.parse(body).electedNum;
         if (result === 'NA') {
             return 503;
         }
         if (result === 'NB') {
-            return 500;
+            return 400;
         }
         const data = Number(result);
         if (!isFinite(data)) {
@@ -207,7 +212,11 @@ async function getElectedNum(index, seq, cookie) {
     }
 }
 async function getVCodeImg(cookie) {
-    const { buffer } = await get(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random() * 10000)}`, {}, cookie, electAndDropURL);
+    const { buffer, body } = await get(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random() * 10000)}`, {}, cookie, electAndDropURL);
+    if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
+        clit.out('Timeout');
+        return 504;
+    }
     fs_1.writeFileSync(path_1.join(__dirname, `../info/vcode-imgs/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.gif`), buffer);
     return buffer.toString('base64');
 }
@@ -249,6 +258,9 @@ async function verifySession(cookie) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const img = await getVCodeImg(cookie);
+            if (img === 504) {
+                return 504;
+            }
             const result = await recognizeVCodeImg(img);
             if (result === 500) {
                 clit.out(`Fail to recognize vcode img`);
@@ -258,7 +270,7 @@ async function verifySession(cookie) {
             clit.out(`Recognized as ${result}`);
             if (await verifyVCode(result, cookie) === 200) {
                 clit.out('Verified');
-                return;
+                return 200;
             }
         }
         catch (err) {
@@ -273,6 +285,10 @@ async function verifySession(cookie) {
 async function electCourse(href, cookie) {
     try {
         const { body } = await get(href, {}, cookie, electAndDropURL);
+        if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
+            clit.out('Timeout');
+            return 504;
+        }
         fs_1.writeFileSync(path_1.join(__dirname, `../info/election-results/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
         const dom = new jsdom_1.JSDOM(body);
         const ele = dom.window.document.body.querySelector('#msgTips');
@@ -285,17 +301,15 @@ async function electCourse(href, cookie) {
         }
         msg = msg.trim();
         clit.out(msg);
-        if (msg.includes('您已经选过该课程了')) {
-            return 409;
-        }
-        if (msg.includes('上课时间冲突')
+        if (msg.includes('您已经选过该课程了')
+            || msg.includes('上课时间冲突')
             || msg.includes('考试时间冲突')
             || msg.includes('在补退选阶段开始后的约一周开放选课')
             || msg.includes('总学分已经超过规定学分上限')
             || msg.includes('只能选')
             || msg.includes('只能修')
             || msg.includes('选课人数已满')) {
-            return 400;
+            return 409;
         }
         if (msg.includes('成功')) {
             return 200;
@@ -321,6 +335,9 @@ function getCourseInfo(session, { title, number, department }) {
 async function createSession() {
     const cookie = await getElectiveCookie();
     const courseInfoArray = await getCourseInfoArray(cookie);
+    if (courseInfoArray === 504) {
+        throw new Error('Fail to create session');
+    }
     clit.out('New session');
     return {
         cookie,
@@ -329,16 +346,25 @@ async function createSession() {
     };
 }
 async function updateSession(session) {
-    session.courseInfoArray = await getCourseInfoArray(session.cookie);
-    if (session === init_1.sessions.main) {
-        await verifySession(session.cookie);
+    const result = await getCourseInfoArray(session.cookie);
+    if (result === 504) {
+        return 504;
     }
+    session.courseInfoArray = result;
+    if (session === init_1.sessions.main) {
+        if (await verifySession(session.cookie) === 504) {
+            return 504;
+        }
+    }
+    return 200;
 }
 async function renewSession(session) {
     Object.assign(session, await createSession());
     init_1.saveSessions();
     if (session === init_1.sessions.main) {
-        await verifySession(session.cookie);
+        if (await verifySession(session.cookie) === 504) {
+            throw new Error('Fail to renew session');
+        }
     }
 }
 let sessionIndex = -1;
@@ -385,8 +411,14 @@ async function main() {
                     await sleep(init_1.config.congestionSleep);
                     return;
                 }
-                if (result0 === 400) {
+                if (result0 === 504) {
                     await renewSession(session);
+                    return;
+                }
+                if (result0 === 400) {
+                    if (await updateSession(session) === 504) {
+                        await renewSession(session);
+                    }
                     return;
                 }
                 if (result0 === 500) {
@@ -403,11 +435,19 @@ async function main() {
                 }
                 electing = true;
                 const result1 = await electCourse(courseInfo.href, init_1.sessions.main.cookie);
+                if (result1 === 504) {
+                    clit.out(`Fail to elect ${courseInfo.title}`);
+                    await renewSession(init_1.sessions.main);
+                    return;
+                }
                 if (result1 === 500) {
                     clit.out(`Fail to elect ${courseInfo.title}`);
-                    await verifySession(init_1.sessions.main.cookie);
+                    if (await verifySession(init_1.sessions.main.cookie) === 504) {
+                        await renewSession(init_1.sessions.main);
+                        return;
+                    }
                     const result = await electCourse(courseInfo.href, init_1.sessions.main.cookie);
-                    if (result === 500) {
+                    if (result === 500 || result === 504) {
                         clit.out(`Fail to elect ${courseInfo.title}`);
                         await renewSession(init_1.sessions.main);
                         return;
@@ -426,9 +466,13 @@ async function main() {
             }
         }
         if (result.length < promises.length) {
-            await updateSession(init_1.sessions.main);
+            if (await updateSession(init_1.sessions.main) === 504) {
+                await renewSession(init_1.sessions.main);
+            }
             for (const session of init_1.sessions.others) {
-                await updateSession(session);
+                if (await updateSession(session) === 504) {
+                    await renewSession(session);
+                }
             }
         }
         if (init_1.config.courses.length === 0) {
