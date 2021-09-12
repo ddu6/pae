@@ -12,10 +12,6 @@ import {join} from 'path'
 export const config={
     studentId:"1x000xxxxx",
     password:"xxxxxxxx",
-    ttshitu:{
-        username:"xxxxxxxx",
-        password:"xxxxxxxx"
-    },
     courses:[
         {
             title:"普通物理",
@@ -26,6 +22,10 @@ export const config={
             title:"逻辑导论"
         }
     ],
+    ttshitu:{
+        username:"xxxxxxxx",
+        password:"xxxxxxxx"
+    },
     proxies:[
         "http://xx.xx.xx.xx:3128/"
     ],
@@ -37,9 +37,43 @@ export const config={
     requestTimeout:30,
     getElectedNumTimeout:3,
 }
-const path=join(__dirname,'../config.json')
-if(!existsSync(path)){
-    writeFileSync(path,JSON.stringify(config,undefined,4))
+export interface CourseInfo{
+    title:string
+    number:number
+    department:string
+    limit:number
+    href:string
+    index:number
+    seq:string
+}
+export interface Session{
+    cookie:string
+    start:number
+    courseInfoArray:CourseInfo[]
+}
+export const sessions={
+    main:<Session>{
+        cookie:'',
+        start:0,
+        courseInfoArray:[]
+    },
+    others:<Session[]>[]
+}
+const path0=join(__dirname,'../config.json')
+const path1=join(__dirname,'../sessions.json')
+export function saveConfig(){
+    writeFileSync(path0,JSON.stringify(config,undefined,4))
+}
+export function saveSessions(){
+    writeFileSync(path1,JSON.stringify(sessions,undefined,4))
+}
+if(!existsSync(path0)){
+    saveConfig()
 }else{
-    Object.assign(config,JSON.parse(readFileSync(path,{encoding:'utf8'})))
+    Object.assign(config,JSON.parse(readFileSync(path0,{encoding:'utf8'})))
+}
+if(!existsSync(path1)){
+    saveSessions()
+}else{
+    Object.assign(sessions,JSON.parse(readFileSync(path1,{encoding:'utf8'})))
 }
