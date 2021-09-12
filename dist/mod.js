@@ -178,7 +178,7 @@ async function getElectedNum(index, seq, cookie) {
     try {
         const { body } = await post('https://elective.pku.edu.cn/elective2008/edu/pku/stu/elective/controller/supplement/refreshLimit.do', {
             index: index.toString(),
-            seq: seq,
+            seq,
             xh: init_1.config.studentId
         }, cookie, electAndDropURL, init_1.config.getElectedNumTimeout);
         if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
@@ -328,6 +328,12 @@ async function createSession() {
         courseInfoArray,
     };
 }
+async function updateSession(session) {
+    session.courseInfoArray = await getCourseInfoArray(session.cookie);
+    if (session === init_1.sessions.main) {
+        await verifySession(session.cookie);
+    }
+}
 async function renewSession(session) {
     Object.assign(session, await createSession());
     init_1.saveSessions();
@@ -362,6 +368,7 @@ async function main() {
     }
     while (true) {
         const promises = [];
+        let electing = false;
         for (let i = 0; i < init_1.config.courses.length; i++) {
             const session = await getSession();
             const courseInfo = getCourseInfo(session, init_1.config.courses[i]);
@@ -391,6 +398,10 @@ async function main() {
                     clit.out(`No places avaliable for ${courseInfo.title}`);
                     return;
                 }
+                if (electing) {
+                    return;
+                }
+                electing = true;
                 const result1 = await electCourse(courseInfo.href, init_1.sessions.main.cookie);
                 if (result1 === 500) {
                     clit.out(`Fail to elect ${courseInfo.title}`);
@@ -412,6 +423,12 @@ async function main() {
                 init_1.saveConfig();
                 result.splice(i, 1);
                 i--;
+            }
+        }
+        if (result.length < promises.length) {
+            await updateSession(init_1.sessions.main);
+            for (const session of init_1.sessions.others) {
+                await updateSession(session);
             }
         }
         if (init_1.config.courses.length === 0) {
