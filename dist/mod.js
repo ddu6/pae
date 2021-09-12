@@ -12,15 +12,15 @@ async function sleep(time) {
         setTimeout(resolve, time * 1000);
     });
 }
-async function get(url, params = {}, cookie = '', referer = '') {
-    const result = await clit.request(url, params, {}, cookie, referer);
+async function get(url, params = {}, cookie = '', referer = '', requestTimeout) {
+    const result = await clit.request(url, params, {}, cookie, referer, undefined, requestTimeout);
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to get ${url}`);
     }
     return result;
 }
-async function post(url, form = {}, cookie = '', referer = '') {
-    const result = await clit.request(url, {}, form, cookie, referer);
+async function post(url, form = {}, cookie = '', referer = '', requestTimeout) {
+    const result = await clit.request(url, {}, form, cookie, referer, undefined, requestTimeout);
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to post ${url}`);
     }
@@ -180,7 +180,7 @@ async function getElectedNum(index, seq, studentId, cookie) {
             index: index.toString(),
             seq: seq,
             xh: studentId
-        }, cookie, electAndDropURL);
+        }, cookie, electAndDropURL, init_1.config.getElectedNumTimeout);
         let tmp;
         try {
             tmp = JSON.parse(body).electedNum;

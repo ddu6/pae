@@ -36,6 +36,7 @@ export const config={
     congestionSleep:3,
     bigErrSleep:5,
     requestTimeout:30,
+    getElectedNumTimeout:2,
 }
 const path=join(__dirname,'../config.json')
 if(!existsSync(path)){

@@ -23,15 +23,15 @@ async function sleep(time:number){
         setTimeout(resolve,time*1000)
     })
 }
-async function get(url:string,params:Record<string,string>={},cookie='',referer=''){
-    const result=await clit.request(url,params,{},cookie,referer)
+async function get(url:string,params:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
+    const result=await clit.request(url,params,{},cookie,referer,undefined,requestTimeout)
     if(typeof result==='number'){
         throw new Error(`${result}, fail to get ${url}`)
     }
     return result
 }
-async function post(url:string,form:Record<string,string>={},cookie='',referer=''){
-    const result=await clit.request(url,{},form,cookie,referer)
+async function post(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
+    const result=await clit.request(url,{},form,cookie,referer,undefined,requestTimeout)
     if(typeof result==='number'){
         throw new Error(`${result}, fail to post ${url}`)
     }
@@ -189,7 +189,7 @@ async function getElectedNum(index:number,seq:string,studentId:string,cookie:str
             index:index.toString(),
             seq:seq,
             xh:studentId
-        },cookie,electAndDropURL)
+        },cookie,electAndDropURL,config.getElectedNumTimeout)
         let tmp
         try{
             tmp=JSON.parse(body).electedNum
