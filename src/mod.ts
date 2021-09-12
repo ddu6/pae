@@ -71,7 +71,7 @@ async function getLoginCookie(studentId:string,password:string,appId:string,appN
     if(location===undefined){
         return cookie
     }
-    cookie=(await get(location)).cookie
+    cookie=`${(await get(location,{},cookie,redirectURL)).cookie}; ${cookie}`
     return cookie
 }
 async function getElectiveCookie(studentId:string,password:string){
