@@ -352,6 +352,7 @@ async function updateSession(session:Session){
         return 504
     }
     session.courseInfoArray=result
+    saveSessions()
     if(session===sessions.main){
         if(await verifySession(session.cookie)===504){
             return 504
