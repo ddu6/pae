@@ -330,6 +330,7 @@ async function createSession() {
 }
 async function renewSession(session) {
     Object.assign(session, await createSession());
+    init_1.saveSessions();
     if (session === init_1.sessions.main) {
         await verifySession(session.cookie);
     }
@@ -357,6 +358,7 @@ async function main() {
     init_1.sessions.others = init_1.sessions.others.filter(val => Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= val.start).slice(0, sessionNum - 1);
     for (let i = 0; i < sessionNum - 1 - init_1.sessions.others.length; i++) {
         init_1.sessions.others.push(await createSession());
+        init_1.saveSessions();
     }
     while (true) {
         const promises = [];

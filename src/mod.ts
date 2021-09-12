@@ -2,7 +2,7 @@ import {writeFileSync} from 'fs'
 import {join} from 'path'
 import {JSDOM} from 'jsdom'
 import {CLIT} from '@ddu6/cli-tools'
-import {config, CourseInfo, saveConfig, Session, sessions} from './init'
+import {config, CourseInfo, saveConfig, saveSessions, Session, sessions} from './init'
 const clit=new CLIT(__dirname,config)
 async function sleep(time:number){
     await new Promise(resolve=>{
@@ -331,6 +331,7 @@ async function createSession():Promise<Session>{
 }
 async function renewSession(session:Session){
     Object.assign(session,await createSession())
+    saveSessions()
     if(session===sessions.main){
         await verifySession(session.cookie)
     }
@@ -359,6 +360,7 @@ export async function main(){
     ).slice(0,sessionNum-1)
     for(let i=0;i<sessionNum-1-sessions.others.length;i++){
         sessions.others.push(await createSession())
+        saveSessions()
     }
     while(true){
         const promises:Promise<true|undefined>[]=[]
