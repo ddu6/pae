@@ -453,27 +453,27 @@ async function main() {
                     if (courseDescToElecting.get(courseDesc)) {
                         return;
                     }
-                    const result0 = await getElectedNum(courseInfo.index, courseInfo.seq, session.cookie);
-                    if (result0 === 503) {
+                    const result = await getElectedNum(courseInfo.index, courseInfo.seq, session.cookie);
+                    if (result === 503) {
                         clit.out('Too frequent');
                         await sleep(init_1.config.congestionSleep);
                         return;
                     }
-                    if (result0 === 504) {
+                    if (result === 504) {
                         session.start = 0;
                         return;
                     }
-                    if (result0 === 400) {
+                    if (result === 400) {
                         if (await updateSession(session) === 504) {
                             session.start = 0;
                         }
                         return;
                     }
-                    if (result0 === 500) {
+                    if (result === 500) {
                         clit.out(`Fail to get elected num`);
                         return;
                     }
-                    const { data } = result0;
+                    const { data } = result;
                     if (data >= courseInfo.limit) {
                         clit.out(`No place avaliable for ${courseInfo.title}`);
                         return;
@@ -489,33 +489,29 @@ async function main() {
                         clit.out('Error');
                         return;
                     }
-                    const result1 = await electCourse(mainCourseInfo.href, mainSession.cookie);
-                    if (result1 === 400) {
-                        if (await updateSession(mainSession) === 504) {
-                            mainSession.start = 0;
-                            clit.out(`Fail to elect ${courseInfo.title}`);
-                            return;
-                        }
-                        const mainCourseInfo = getCourseInfo(mainSession, courseDesc);
-                        if (mainCourseInfo === undefined) {
-                            return;
-                        }
+                    normal: {
                         const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
-                        if (result === 200) {
-                            return courseDesc;
+                        if (result === 504 || result === 500) {
+                            break normal;
                         }
-                        mainSession.start = 0;
-                        courseDescToElecting.set(courseDesc, undefined);
-                        clit.out(`Fail to elect ${courseInfo.title}`);
-                        return;
+                        if (result === 400) {
+                            if (await updateSession(mainSession) === 504) {
+                                break normal;
+                            }
+                            const mainCourseInfo = getCourseInfo(mainSession, courseDesc);
+                            if (mainCourseInfo === undefined) {
+                                return;
+                            }
+                            const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
+                            if (result !== 200) {
+                                break normal;
+                            }
+                        }
+                        return courseDesc;
                     }
-                    if (result1 === 504 || result1 === 500) {
-                        mainSession.start = 0;
-                        courseDescToElecting.set(courseDesc, undefined);
-                        clit.out(`Fail to elect ${courseInfo.title}`);
-                        return;
-                    }
-                    return courseDesc;
+                    mainSession.start = 0;
+                    courseDescToElecting.set(courseDesc, undefined);
+                    clit.out(`Fail to elect ${courseInfo.title}`);
                 })());
             }
             await sleep(init_1.config.refreshInterval);
