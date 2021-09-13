@@ -29,6 +29,7 @@ export const config={
     proxies:[
         "http://xx.xx.xx.xx:3128/"
     ],
+    proxyDelay:1,
     sessionDuration:1800,
     refreshInterval:3,
     errLimit:100,
