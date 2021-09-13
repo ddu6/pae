@@ -403,7 +403,7 @@ async function getSession(){
 }
 export async function main(){
     const batchSize=Math.ceil(config.proxyDelay/config.refreshInterval)
-    const sessionNum=Math.ceil(3/config.refreshInterval)*config.courses.length*batchSize*2
+    const sessionNum=Math.max(Math.ceil(3/config.refreshInterval),batchSize*2)*config.courses.length
     if(Date.now()/1000-config.sessionDuration+Math.random()*300>sessions.main.start){
         await renewSession(sessions.main)
     }
