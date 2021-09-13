@@ -402,8 +402,8 @@ async function getSession() {
     return session;
 }
 async function main() {
-    const sessionNum = Math.ceil(3 / init_1.config.refreshInterval) * init_1.config.courses.length;
     const batchSize = Math.ceil(init_1.config.proxyDelay / init_1.config.refreshInterval);
+    const sessionNum = Math.ceil(3 / init_1.config.refreshInterval) * init_1.config.courses.length * batchSize;
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
         await renewSession(init_1.sessions.main);
     }
@@ -428,6 +428,9 @@ async function main() {
                     continue;
                 }
                 promises.push((async () => {
+                    if (electing) {
+                        return;
+                    }
                     const result0 = await getElectedNum(courseInfo0.index, courseInfo0.seq, session.cookie);
                     if (result0 === 503) {
                         clit.out('Too frequent');
