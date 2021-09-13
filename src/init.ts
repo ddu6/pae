@@ -54,11 +54,7 @@ export interface Session{
     courseInfoArray:CourseInfo[]
 }
 export const sessions={
-    main:<Session>{
-        cookie:'',
-        start:0,
-        courseInfoArray:[]
-    },
+    main:<Session[]>[],
     others:<Session[]>[]
 }
 const path0=join(__dirname,'../config.json')

@@ -43,11 +43,7 @@ exports.config = {
     recognizeTimeout: 5,
 };
 exports.sessions = {
-    main: {
-        cookie: '',
-        start: 0,
-        courseInfoArray: []
-    },
+    main: [],
     others: []
 };
 const path0 = path_1.join(__dirname, '../config.json');

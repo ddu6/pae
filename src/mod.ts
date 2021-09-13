@@ -359,6 +359,16 @@ async function createSession():Promise<Session>{
     }
     throw new Error('Fail to create session')
 }
+async function createMainSession():Promise<Session>{
+    for(let i=0;i<config.errLimit;i++){
+        const session=await createSession()
+        if(await verifySession(session.cookie)!==504){
+            return session
+        }
+        await sleep(config.errSleep)
+    }
+    throw new Error('Fail to create main session')
+}
 async function updateSession(session:Session){
     const result=await getCourseInfoArray(session.cookie)
     if(result===504){
@@ -366,7 +376,7 @@ async function updateSession(session:Session){
     }
     session.courseInfoArray=result
     saveSessions()
-    if(session===sessions.main){
+    if(sessions.main.includes(session)){
         if(await verifySession(session.cookie)===504){
             return 504
         }
@@ -377,7 +387,7 @@ async function renewSession(session:Session){
     for(let i=0;i<config.errLimit;i++){
         Object.assign(session,await createSession())
         saveSessions()
-        if(session!==sessions.main){
+        if(!sessions.main.includes(session)){
             return
         }
         if(await verifySession(session.cookie)!==504){
@@ -388,42 +398,69 @@ async function renewSession(session:Session){
     throw new Error('Fail to renew session')
 }
 let sessionIndex=-1
-async function getSession(){
-    sessionIndex=(sessionIndex+1)%(sessions.others.length+1)
-    let session:Session
-    if(sessionIndex===0){
-        session=sessions.main
-    }else{
-        session=sessions.others[sessionIndex-1]
+function getSession(){
+    while(true){
+        sessionIndex=(sessionIndex+1)%(sessions.others.length+sessions.main.length)
+        let session:Session
+        if(sessionIndex<sessions.main.length){
+            session=sessions.main[sessionIndex]
+        }else{
+            session=sessions.others[sessionIndex-sessions.main.length]
+        }
+        if(session.start<0){
+            continue
+        }
+        if(Date.now()/1000-config.sessionDuration+Math.random()*300<=session.start){
+            return session
+        }
+        session.start=-1
+        renewSession(session)
     }
-    if(Date.now()/1000-config.sessionDuration+Math.random()*300>session.start){
-        await renewSession(session)
+}
+let mainSessionIndex=0
+function getMainSession(){
+    while(true){
+        const session=sessions.main[mainSessionIndex++%sessions.main.length]
+        if(session.start<0){
+            continue
+        }
+        if(Date.now()/1000-config.sessionDuration+Math.random()*300<=session.start){
+            return session
+        }
+        session.start=-1
+        renewSession(session)
     }
-    return session
 }
 export async function main(){
     const batchSize=Math.ceil(Math.max(3,config.proxyDelay+1)/config.refreshInterval)
     const sessionNum=batchSize*config.courses.length*2
-    if(Date.now()/1000-config.sessionDuration+Math.random()*300>sessions.main.start){
-        await renewSession(sessions.main)
-    }
-    sessions.others=sessions.others.filter(
+    sessions.main=sessions.main.filter(
         val=>Date.now()/1000-config.sessionDuration+Math.random()*300<=val.start
-    ).slice(0,sessionNum-1)
-    for(let i=0;i<sessionNum-1-sessions.others.length;i++){
+    )
+    sessions.others=sessions.main.slice(config.courses.length).concat(sessions.others.filter(
+        val=>Date.now()/1000-config.sessionDuration+Math.random()*300<=val.start
+    )).slice(0,sessionNum-config.courses.length)
+    sessions.main=sessions.main.slice(0,config.courses.length)
+    saveSessions()
+    for(let i=0;i<config.courses.length-sessions.main.length;i++){
+        sessions.main.push(await createMainSession())
+        saveSessions()
+    }
+    for(let i=0;i<sessionNum-config.courses.length-sessions.others.length;i++){
         sessions.others.push(await createSession())
         saveSessions()
     }
     let lastPromises:Promise<CourseDesc|undefined>[]=[]
-    let electing=false
+    const courseDescToElecting:Map<CourseDesc,true|undefined>=new Map()
     while(true){
         const promises:Promise<CourseDesc|undefined>[]=[]
         for(let i=0;i<batchSize;i++){
             for(let i=0;i<config.courses.length;i++){
-                const session=await getSession()
+                const session=getSession()
+                const mainSession=getMainSession()
                 const courseDesc=config.courses[i]
                 const courseInfo0=getCourseInfo(session,courseDesc)
-                const courseInfo1=getCourseInfo(sessions.main,courseDesc)
+                const courseInfo1=getCourseInfo(mainSession,courseDesc)
                 if(courseInfo0===undefined||courseInfo1===undefined){
                     config.courses.splice(i,1)
                     saveConfig()
@@ -431,7 +468,7 @@ export async function main(){
                     continue
                 }
                 promises.push((async ()=>{
-                    if(electing){
+                    if(courseDescToElecting.get(courseDesc)){
                         return
                     }
                     const result0=await getElectedNum(courseInfo0.index,courseInfo0.seq,session.cookie)
@@ -441,12 +478,12 @@ export async function main(){
                         return
                     }
                     if(result0===504){
-                        await renewSession(session)
+                        session.start=0
                         return
                     }
                     if(result0===400){
                         if(await updateSession(session)===504){
-                            await renewSession(session)
+                            session.start=0
                         }
                         return
                     }
@@ -459,29 +496,29 @@ export async function main(){
                         clit.out(`No places avaliable for ${courseInfo0.title}`)
                         return
                     }
-                    if(electing){
+                    if(courseDescToElecting.get(courseDesc)){
                         return
                     }
-                    electing=true
-                    const result1=await electCourse(courseInfo1.href,sessions.main.cookie)
+                    courseDescToElecting.set(courseDesc,true)
+                    const result1=await electCourse(courseInfo1.href,mainSession.cookie)
                     if(result1===504){
                         clit.out(`Fail to elect ${courseInfo1.title}`)
-                        await renewSession(sessions.main)
-                        electing=false
+                        session.start=0
+                        courseDescToElecting.set(courseDesc,undefined)
                         return
                     }
                     if(result1===500){
                         clit.out(`Fail to elect ${courseInfo1.title}`)
-                        if(await verifySession(sessions.main.cookie)===504){
-                            await renewSession(sessions.main)
-                            electing=false
+                        if(await verifySession(mainSession.cookie)===504){
+                            session.start=0
+                            courseDescToElecting.set(courseDesc,undefined)
                             return
                         }
-                        const result=await electCourse(courseInfo1.href,sessions.main.cookie)
+                        const result=await electCourse(courseInfo1.href,mainSession.cookie)
                         if(result===500||result===504){
                             clit.out(`Fail to elect ${courseInfo1.title}`)
-                            await renewSession(sessions.main)
-                            electing=false
+                            session.start=0
+                            courseDescToElecting.set(courseDesc,undefined)
                             return
                         }
                     }
@@ -495,15 +532,16 @@ export async function main(){
         if(result.find(val=>val!==undefined)!==undefined){
             config.courses=config.courses.filter(val=>!result.includes(val))
             saveConfig()
-            if(await updateSession(sessions.main)===504){
-                await renewSession(sessions.main)
-            }
-            for(const session of sessions.others){
-                if(await updateSession(session)===504){
-                    await renewSession(session)
+            for(const session of sessions.main){
+                if(session.start>0&&await updateSession(session)===504){
+                    session.start=0
                 }
             }
-            electing=false
+            for(const session of sessions.others){
+                if(session.start>0&&await updateSession(session)===504){
+                    session.start=0
+                }
+            }
         }
         if(config.courses.length===0){
             clit.out('Finished')
