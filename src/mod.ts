@@ -403,7 +403,7 @@ async function getSession(){
 }
 export async function main(){
     const batchSize=Math.ceil(config.proxyDelay/config.refreshInterval)
-    const sessionNum=Math.ceil(3/config.refreshInterval)*config.courses.length*batchSize
+    const sessionNum=Math.ceil(3/config.refreshInterval)*config.courses.length*batchSize*2
     if(Date.now()/1000-config.sessionDuration+Math.random()*300>sessions.main.start){
         await renewSession(sessions.main)
     }
@@ -414,8 +414,9 @@ export async function main(){
         sessions.others.push(await createSession())
         saveSessions()
     }
+    let lastPromises:Promise<CourseDesc|undefined>[]=[]
+    let electing=false
     while(true){
-        let electing=false
         const promises:Promise<CourseDesc|undefined>[]=[]
         for(let i=0;i<batchSize;i++){
             for(let i=0;i<config.courses.length;i++){
@@ -466,18 +467,21 @@ export async function main(){
                     if(result1===504){
                         clit.out(`Fail to elect ${courseInfo1.title}`)
                         await renewSession(sessions.main)
+                        electing=false
                         return
                     }
                     if(result1===500){
                         clit.out(`Fail to elect ${courseInfo1.title}`)
                         if(await verifySession(sessions.main.cookie)===504){
                             await renewSession(sessions.main)
+                            electing=false
                             return
                         }
                         const result=await electCourse(courseInfo1.href,sessions.main.cookie)
                         if(result===500||result===504){
                             clit.out(`Fail to elect ${courseInfo1.title}`)
                             await renewSession(sessions.main)
+                            electing=false
                             return
                         }
                     }
@@ -486,7 +490,8 @@ export async function main(){
             }
             await sleep(config.refreshInterval)
         }
-        const result=await Promise.all(promises)
+        const result=await Promise.all(lastPromises)
+        lastPromises=promises
         if(result.find(val=>val!==undefined)!==undefined){
             config.courses=config.courses.filter(val=>!result.includes(val))
             saveConfig()
@@ -498,6 +503,7 @@ export async function main(){
                     await renewSession(session)
                 }
             }
+            electing=false
         }
         if(config.courses.length===0){
             clit.out('Finished')

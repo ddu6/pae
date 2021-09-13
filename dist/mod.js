@@ -403,7 +403,7 @@ async function getSession() {
 }
 async function main() {
     const batchSize = Math.ceil(init_1.config.proxyDelay / init_1.config.refreshInterval);
-    const sessionNum = Math.ceil(3 / init_1.config.refreshInterval) * init_1.config.courses.length * batchSize;
+    const sessionNum = Math.ceil(3 / init_1.config.refreshInterval) * init_1.config.courses.length * batchSize * 2;
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
         await renewSession(init_1.sessions.main);
     }
@@ -412,8 +412,9 @@ async function main() {
         init_1.sessions.others.push(await createSession());
         init_1.saveSessions();
     }
+    let lastPromises = [];
+    let electing = false;
     while (true) {
-        let electing = false;
         const promises = [];
         for (let i = 0; i < batchSize; i++) {
             for (let i = 0; i < init_1.config.courses.length; i++) {
@@ -464,18 +465,21 @@ async function main() {
                     if (result1 === 504) {
                         clit.out(`Fail to elect ${courseInfo1.title}`);
                         await renewSession(init_1.sessions.main);
+                        electing = false;
                         return;
                     }
                     if (result1 === 500) {
                         clit.out(`Fail to elect ${courseInfo1.title}`);
                         if (await verifySession(init_1.sessions.main.cookie) === 504) {
                             await renewSession(init_1.sessions.main);
+                            electing = false;
                             return;
                         }
                         const result = await electCourse(courseInfo1.href, init_1.sessions.main.cookie);
                         if (result === 500 || result === 504) {
                             clit.out(`Fail to elect ${courseInfo1.title}`);
                             await renewSession(init_1.sessions.main);
+                            electing = false;
                             return;
                         }
                     }
@@ -484,7 +488,8 @@ async function main() {
             }
             await sleep(init_1.config.refreshInterval);
         }
-        const result = await Promise.all(promises);
+        const result = await Promise.all(lastPromises);
+        lastPromises = promises;
         if (result.find(val => val !== undefined) !== undefined) {
             init_1.config.courses = init_1.config.courses.filter(val => !result.includes(val));
             init_1.saveConfig();
@@ -496,6 +501,7 @@ async function main() {
                     await renewSession(session);
                 }
             }
+            electing = false;
         }
         if (init_1.config.courses.length === 0) {
             clit.out('Finished');
