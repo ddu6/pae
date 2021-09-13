@@ -372,16 +372,26 @@ async function createMainSession():Promise<Session>{
 async function updateSession(session:Session){
     const result=await getCourseInfoArray(session.cookie)
     if(result===504){
-        return 504
+        session.start=0
+        saveSessions()
+        return
     }
     session.courseInfoArray=result
     saveSessions()
     if(sessions.main.includes(session)){
-        if(await verifySession(session.cookie)===504){
-            return 504
-        }
+        const {start}=session
+        session.start=-2
+        saveSessions()
+        verifySession(session.cookie).then(val=>{
+            if(val===504){
+                session.start=0
+            }else{
+                session.start=start
+            }
+            saveSessions()
+        })
     }
-    return 200
+    return
 }
 async function renewSession(session:Session){
     for(let i=0;i<config.errLimit;i++){
@@ -398,7 +408,7 @@ async function renewSession(session:Session){
     throw new Error('Fail to renew session')
 }
 let sessionIndex=-1
-function getSession(){
+async function getSession(){
     while(true){
         sessionIndex=(sessionIndex+1)%(sessions.others.length+sessions.main.length)
         let session:Session
@@ -414,11 +424,13 @@ function getSession(){
             return session
         }
         session.start=-1
+        saveSessions()
         renewSession(session)
+        await sleep(config.smallSleep)
     }
 }
 let mainSessionIndex=0
-function getMainSession(){
+async function getMainSession(){
     while(true){
         const session=sessions.main[mainSessionIndex++%sessions.main.length]
         if(session.start<0){
@@ -428,7 +440,9 @@ function getMainSession(){
             return session
         }
         session.start=-1
+        saveSessions()
         renewSession(session)
+        await sleep(config.smallSleep)
     }
 }
 export async function main(){
@@ -459,8 +473,8 @@ export async function main(){
                 if(electing){
                     break
                 }
-                const session=getSession()
-                const mainSession=getMainSession()
+                const session=await getSession()
+                const mainSession=await getMainSession()
                 const courseDesc=config.courses[i]
                 const courseInfo0=getCourseInfo(session,courseDesc)
                 const courseInfo1=getCourseInfo(mainSession,courseDesc)
@@ -482,12 +496,11 @@ export async function main(){
                     }
                     if(result0===504){
                         session.start=0
+                        saveSessions()
                         return
                     }
                     if(result0===400){
-                        if(await updateSession(session)===504){
-                            session.start=0
-                        }
+                        await updateSession(session)
                         return
                     }
                     if(result0===500){
@@ -507,6 +520,7 @@ export async function main(){
                     if(result1===504||result1===500){
                         clit.out(`Fail to elect ${courseInfo1.title}`)
                         session.start=0
+                        saveSessions()
                         electing=false
                         return
                     }
@@ -524,13 +538,13 @@ export async function main(){
             config.courses=config.courses.filter(val=>!result.includes(val))
             saveConfig()
             for(const session of sessions.main){
-                if(session.start>0&&await updateSession(session)===504){
-                    session.start=0
+                if(session.start>0){
+                    await updateSession(session)
                 }
             }
             for(const session of sessions.others){
-                if(session.start>0&&await updateSession(session)===504){
-                    session.start=0
+                if(session.start>0){
+                    await updateSession(session)
                 }
             }
             electing=false

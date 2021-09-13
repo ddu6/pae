@@ -371,16 +371,27 @@ async function createMainSession() {
 async function updateSession(session) {
     const result = await getCourseInfoArray(session.cookie);
     if (result === 504) {
-        return 504;
+        session.start = 0;
+        init_1.saveSessions();
+        return;
     }
     session.courseInfoArray = result;
     init_1.saveSessions();
     if (init_1.sessions.main.includes(session)) {
-        if (await verifySession(session.cookie) === 504) {
-            return 504;
-        }
+        const { start } = session;
+        session.start = -2;
+        init_1.saveSessions();
+        verifySession(session.cookie).then(val => {
+            if (val === 504) {
+                session.start = 0;
+            }
+            else {
+                session.start = start;
+            }
+            init_1.saveSessions();
+        });
     }
-    return 200;
+    return;
 }
 async function renewSession(session) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
@@ -397,7 +408,7 @@ async function renewSession(session) {
     throw new Error('Fail to renew session');
 }
 let sessionIndex = -1;
-function getSession() {
+async function getSession() {
     while (true) {
         sessionIndex = (sessionIndex + 1) % (init_1.sessions.others.length + init_1.sessions.main.length);
         let session;
@@ -414,11 +425,13 @@ function getSession() {
             return session;
         }
         session.start = -1;
+        init_1.saveSessions();
         renewSession(session);
+        await sleep(init_1.config.smallSleep);
     }
 }
 let mainSessionIndex = 0;
-function getMainSession() {
+async function getMainSession() {
     while (true) {
         const session = init_1.sessions.main[mainSessionIndex++ % init_1.sessions.main.length];
         if (session.start < 0) {
@@ -428,7 +441,9 @@ function getMainSession() {
             return session;
         }
         session.start = -1;
+        init_1.saveSessions();
         renewSession(session);
+        await sleep(init_1.config.smallSleep);
     }
 }
 async function main() {
@@ -455,8 +470,8 @@ async function main() {
                 if (electing) {
                     break;
                 }
-                const session = getSession();
-                const mainSession = getMainSession();
+                const session = await getSession();
+                const mainSession = await getMainSession();
                 const courseDesc = init_1.config.courses[i];
                 const courseInfo0 = getCourseInfo(session, courseDesc);
                 const courseInfo1 = getCourseInfo(mainSession, courseDesc);
@@ -478,12 +493,11 @@ async function main() {
                     }
                     if (result0 === 504) {
                         session.start = 0;
+                        init_1.saveSessions();
                         return;
                     }
                     if (result0 === 400) {
-                        if (await updateSession(session) === 504) {
-                            session.start = 0;
-                        }
+                        await updateSession(session);
                         return;
                     }
                     if (result0 === 500) {
@@ -503,6 +517,7 @@ async function main() {
                     if (result1 === 504 || result1 === 500) {
                         clit.out(`Fail to elect ${courseInfo1.title}`);
                         session.start = 0;
+                        init_1.saveSessions();
                         electing = false;
                         return;
                     }
@@ -520,13 +535,13 @@ async function main() {
             init_1.config.courses = init_1.config.courses.filter(val => !result.includes(val));
             init_1.saveConfig();
             for (const session of init_1.sessions.main) {
-                if (session.start > 0 && await updateSession(session) === 504) {
-                    session.start = 0;
+                if (session.start > 0) {
+                    await updateSession(session);
                 }
             }
             for (const session of init_1.sessions.others) {
-                if (session.start > 0 && await updateSession(session) === 504) {
-                    session.start = 0;
+                if (session.start > 0) {
+                    await updateSession(session);
                 }
             }
             electing = false;
