@@ -433,11 +433,11 @@ export async function main(){
     )).slice(0,sessionNum-config.courses.length)
     sessions.main=sessions.main.slice(0,config.courses.length)
     saveSessions()
-    for(let i=0;i<config.courses.length-sessions.main.length;i++){
+    for(let i=sessions.main.length;i<config.courses.length;i++){
         sessions.main.push(await createMainSession())
         saveSessions()
     }
-    for(let i=0;i<sessionNum-config.courses.length-sessions.others.length;i++){
+    for(let i=sessions.others.length+config.courses.length;i<sessionNum;i++){
         sessions.others.push(await createSession())
         saveSessions()
     }

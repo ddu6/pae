@@ -427,11 +427,11 @@ async function main() {
     init_1.sessions.others = init_1.sessions.main.slice(init_1.config.courses.length).concat(init_1.sessions.others.filter(val => Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= val.start)).slice(0, sessionNum - init_1.config.courses.length);
     init_1.sessions.main = init_1.sessions.main.slice(0, init_1.config.courses.length);
     init_1.saveSessions();
-    for (let i = 0; i < init_1.config.courses.length - init_1.sessions.main.length; i++) {
+    for (let i = init_1.sessions.main.length; i < init_1.config.courses.length; i++) {
         init_1.sessions.main.push(await createMainSession());
         init_1.saveSessions();
     }
-    for (let i = 0; i < sessionNum - init_1.config.courses.length - init_1.sessions.others.length; i++) {
+    for (let i = init_1.sessions.others.length + init_1.config.courses.length; i < sessionNum; i++) {
         init_1.sessions.others.push(await createSession());
         init_1.saveSessions();
     }
