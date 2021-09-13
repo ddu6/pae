@@ -402,8 +402,8 @@ async function getSession() {
     return session;
 }
 async function main() {
-    const batchSize = Math.ceil(init_1.config.proxyDelay / init_1.config.refreshInterval);
-    const sessionNum = Math.max(Math.ceil(3 / init_1.config.refreshInterval), batchSize) * init_1.config.courses.length * 2;
+    const batchSize = Math.ceil(Math.max(3, init_1.config.proxyDelay + 1) / init_1.config.refreshInterval);
+    const sessionNum = batchSize * init_1.config.courses.length * 2;
     if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > init_1.sessions.main.start) {
         await renewSession(init_1.sessions.main);
     }
