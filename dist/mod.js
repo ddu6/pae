@@ -447,11 +447,14 @@ async function main() {
         init_1.saveSessions();
     }
     let lastPromises = [];
-    const courseDescToElecting = new Map();
+    let electing = false;
     while (true) {
         const promises = [];
         for (let i = 0; i < batchSize; i++) {
             for (let i = 0; i < init_1.config.courses.length; i++) {
+                if (electing) {
+                    break;
+                }
                 const session = getSession();
                 const mainSession = getMainSession();
                 const courseDesc = init_1.config.courses[i];
@@ -464,7 +467,7 @@ async function main() {
                     continue;
                 }
                 promises.push((async () => {
-                    if (courseDescToElecting.get(courseDesc)) {
+                    if (electing) {
                         return;
                     }
                     const result0 = await getElectedNum(courseInfo0.index, courseInfo0.seq, session.cookie);
@@ -492,34 +495,22 @@ async function main() {
                         clit.out(`No places avaliable for ${courseInfo0.title}`);
                         return;
                     }
-                    if (courseDescToElecting.get(courseDesc)) {
+                    if (electing) {
                         return;
                     }
-                    courseDescToElecting.set(courseDesc, true);
+                    electing = true;
                     const result1 = await electCourse(courseInfo1.href, mainSession.cookie);
-                    if (result1 === 504) {
+                    if (result1 === 504 || result1 === 500) {
                         clit.out(`Fail to elect ${courseInfo1.title}`);
                         session.start = 0;
-                        courseDescToElecting.set(courseDesc, undefined);
+                        electing = false;
                         return;
-                    }
-                    if (result1 === 500) {
-                        clit.out(`Fail to elect ${courseInfo1.title}`);
-                        if (await verifySession(mainSession.cookie) === 504) {
-                            session.start = 0;
-                            courseDescToElecting.set(courseDesc, undefined);
-                            return;
-                        }
-                        const result = await electCourse(courseInfo1.href, mainSession.cookie);
-                        if (result === 500 || result === 504) {
-                            clit.out(`Fail to elect ${courseInfo1.title}`);
-                            session.start = 0;
-                            courseDescToElecting.set(courseDesc, undefined);
-                            return;
-                        }
                     }
                     return courseDesc;
                 })());
+            }
+            if (electing) {
+                break;
             }
             await sleep(init_1.config.refreshInterval);
         }
@@ -538,6 +529,7 @@ async function main() {
                     session.start = 0;
                 }
             }
+            electing = false;
         }
         if (init_1.config.courses.length === 0) {
             clit.out('Finished');
