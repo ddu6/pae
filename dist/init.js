@@ -37,7 +37,6 @@ exports.config = {
     refreshInterval: 3,
     errLimit: 100,
     errSleep: 1,
-    smallSleep: 0.01,
     congestionSleep: 3,
     requestTimeout: 30,
     getElectedNumTimeout: 3,
