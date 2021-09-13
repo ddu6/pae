@@ -311,6 +311,10 @@ async function electCourse(href, cookie) {
         }
         msg = msg.trim();
         clit.out(msg);
+        if (msg.includes('选课课程已失效')
+            || msg.includes('您的可选列表中无此课程')) {
+            return 400;
+        }
         if (msg.includes('您已经选过该课程了')
             || msg.includes('上课时间冲突')
             || msg.includes('考试时间冲突')
@@ -371,27 +375,17 @@ async function createMainSession() {
 async function updateSession(session) {
     const result = await getCourseInfoArray(session.cookie);
     if (result === 504) {
-        session.start = 0;
-        init_1.saveSessions();
-        return;
+        return 504;
     }
     session.courseInfoArray = result;
     init_1.saveSessions();
     if (init_1.sessions.main.includes(session)) {
-        const { start } = session;
-        session.start = -2;
-        init_1.saveSessions();
-        verifySession(session.cookie).then(val => {
-            if (val === 504) {
-                session.start = 0;
-            }
-            else {
-                session.start = start;
-            }
-            init_1.saveSessions();
-        });
+        if (await verifySession(session.cookie) === 504) {
+            return 504;
+        }
     }
-    return;
+    clit.out('Updated');
+    return 200;
 }
 async function renewSession(session) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
@@ -409,42 +403,22 @@ async function renewSession(session) {
 }
 let sessionIndex = -1;
 async function getSession() {
-    while (true) {
-        sessionIndex = (sessionIndex + 1) % (init_1.sessions.others.length + init_1.sessions.main.length);
-        let session;
-        if (sessionIndex < init_1.sessions.main.length) {
-            session = init_1.sessions.main[sessionIndex];
-        }
-        else {
-            session = init_1.sessions.others[sessionIndex - init_1.sessions.main.length];
-        }
-        if (session.start < 0) {
-            continue;
-        }
-        if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= session.start) {
-            return session;
-        }
-        session.start = -1;
-        init_1.saveSessions();
-        renewSession(session);
-        await sleep(init_1.config.smallSleep);
+    sessionIndex = (sessionIndex + 1) % (init_1.sessions.others.length + init_1.sessions.main.length);
+    let session;
+    if (sessionIndex < init_1.sessions.main.length) {
+        session = init_1.sessions.main[sessionIndex];
     }
+    else {
+        session = init_1.sessions.others[sessionIndex - init_1.sessions.main.length];
+    }
+    if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 > session.start) {
+        await renewSession(session);
+    }
+    return session;
 }
 let mainSessionIndex = 0;
-async function getMainSession() {
-    while (true) {
-        const session = init_1.sessions.main[mainSessionIndex++ % init_1.sessions.main.length];
-        if (session.start < 0) {
-            continue;
-        }
-        if (Date.now() / 1000 - init_1.config.sessionDuration + Math.random() * 300 <= session.start) {
-            return session;
-        }
-        session.start = -1;
-        init_1.saveSessions();
-        renewSession(session);
-        await sleep(init_1.config.smallSleep);
-    }
+function getMainSession() {
+    return init_1.sessions.main[mainSessionIndex++ % init_1.sessions.main.length];
 }
 async function main() {
     const batchSize = Math.ceil(Math.max(3, init_1.config.proxyDelay + 1) / init_1.config.refreshInterval);
@@ -462,30 +436,24 @@ async function main() {
         init_1.saveSessions();
     }
     let lastPromises = [];
-    let electing = false;
+    const courseDescToElecting = new Map();
     while (true) {
         const promises = [];
         for (let i = 0; i < batchSize; i++) {
-            for (let i = 0; i < init_1.config.courses.length; i++) {
-                if (electing) {
-                    break;
-                }
-                const session = await getSession();
-                const mainSession = await getMainSession();
-                const courseDesc = init_1.config.courses[i];
-                const courseInfo0 = getCourseInfo(session, courseDesc);
-                const courseInfo1 = getCourseInfo(mainSession, courseDesc);
-                if (courseInfo0 === undefined || courseInfo1 === undefined) {
-                    init_1.config.courses.splice(i, 1);
-                    init_1.saveConfig();
-                    i--;
+            for (const courseDesc of init_1.config.courses) {
+                if (courseDescToElecting.get(courseDesc)) {
                     continue;
                 }
                 promises.push((async () => {
-                    if (electing) {
+                    const session = await getSession();
+                    const courseInfo = getCourseInfo(session, courseDesc);
+                    if (courseInfo === undefined) {
+                        return courseDesc;
+                    }
+                    if (courseDescToElecting.get(courseDesc)) {
                         return;
                     }
-                    const result0 = await getElectedNum(courseInfo0.index, courseInfo0.seq, session.cookie);
+                    const result0 = await getElectedNum(courseInfo.index, courseInfo.seq, session.cookie);
                     if (result0 === 503) {
                         clit.out('Too frequent');
                         await sleep(init_1.config.congestionSleep);
@@ -493,11 +461,12 @@ async function main() {
                     }
                     if (result0 === 504) {
                         session.start = 0;
-                        init_1.saveSessions();
                         return;
                     }
                     if (result0 === 400) {
-                        await updateSession(session);
+                        if (await updateSession(session) === 504) {
+                            session.start = 0;
+                        }
                         return;
                     }
                     if (result0 === 500) {
@@ -505,27 +474,49 @@ async function main() {
                         return;
                     }
                     const { data } = result0;
-                    if (data >= courseInfo0.limit) {
-                        clit.out(`No places avaliable for ${courseInfo0.title}`);
+                    if (data >= courseInfo.limit) {
+                        clit.out(`No place avaliable for ${courseInfo.title}`);
                         return;
                     }
-                    if (electing) {
+                    clit.out(`Place avaliable for ${courseInfo.title}`);
+                    if (courseDescToElecting.get(courseDesc)) {
                         return;
                     }
-                    electing = true;
-                    const result1 = await electCourse(courseInfo1.href, mainSession.cookie);
+                    courseDescToElecting.set(courseDesc, true);
+                    const mainSession = getMainSession();
+                    const mainCourseInfo = getCourseInfo(mainSession, courseDesc);
+                    if (mainCourseInfo === undefined) {
+                        clit.out('Error');
+                        return;
+                    }
+                    const result1 = await electCourse(mainCourseInfo.href, mainSession.cookie);
+                    if (result1 === 400) {
+                        if (await updateSession(mainSession) === 504) {
+                            mainSession.start = 0;
+                            clit.out(`Fail to elect ${courseInfo.title}`);
+                            return;
+                        }
+                        const mainCourseInfo = getCourseInfo(mainSession, courseDesc);
+                        if (mainCourseInfo === undefined) {
+                            return;
+                        }
+                        const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
+                        if (result === 200) {
+                            return courseDesc;
+                        }
+                        mainSession.start = 0;
+                        courseDescToElecting.set(courseDesc, undefined);
+                        clit.out(`Fail to elect ${courseInfo.title}`);
+                        return;
+                    }
                     if (result1 === 504 || result1 === 500) {
-                        clit.out(`Fail to elect ${courseInfo1.title}`);
-                        session.start = 0;
-                        init_1.saveSessions();
-                        electing = false;
+                        mainSession.start = 0;
+                        courseDescToElecting.set(courseDesc, undefined);
+                        clit.out(`Fail to elect ${courseInfo.title}`);
                         return;
                     }
                     return courseDesc;
                 })());
-            }
-            if (electing) {
-                break;
             }
             await sleep(init_1.config.refreshInterval);
         }
@@ -534,17 +525,6 @@ async function main() {
         if (result.find(val => val !== undefined) !== undefined) {
             init_1.config.courses = init_1.config.courses.filter(val => !result.includes(val));
             init_1.saveConfig();
-            for (const session of init_1.sessions.main) {
-                if (session.start > 0) {
-                    await updateSession(session);
-                }
-            }
-            for (const session of init_1.sessions.others) {
-                if (session.start > 0) {
-                    await updateSession(session);
-                }
-            }
-            electing = false;
         }
         if (init_1.config.courses.length === 0) {
             clit.out('Finished');
