@@ -18,6 +18,10 @@ async function sleep(time) {
 }
 async function get(url, params = {}, cookie = '', referer = '', requestTimeout) {
     const result = await clit.request(url, params, {}, cookie, referer, undefined, requestTimeout);
+    if (result === 408) {
+        clit.out('Timeout', 1);
+        throw undefined;
+    }
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to get ${url}`);
     }
@@ -25,6 +29,10 @@ async function get(url, params = {}, cookie = '', referer = '', requestTimeout) 
 }
 async function post(url, form = {}, cookie = '', referer = '', requestTimeout) {
     const result = await clit.request(url, {}, form, cookie, referer, undefined, requestTimeout);
+    if (result === 408) {
+        clit.out('Timeout', 1);
+        throw undefined;
+    }
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to post ${url}`);
     }
@@ -32,6 +40,10 @@ async function post(url, form = {}, cookie = '', referer = '', requestTimeout) {
 }
 async function ppost(url, form = {}, cookie = '', referer = '', requestTimeout) {
     const result = await pclit.request(url, {}, form, cookie, referer, undefined, requestTimeout);
+    if (result === 408) {
+        clit.out('Timeout', 1);
+        throw undefined;
+    }
     if (typeof result === 'number') {
         throw new Error(`${result}, fail to post ${url}`);
     }
@@ -83,7 +95,7 @@ async function getElectiveCookie() {
         }
         catch (err) {
             if (err instanceof Error) {
-                clit.log(err);
+                clit.out(err);
             }
         }
         await sleep(init_1.config.errSleep);
@@ -143,8 +155,8 @@ async function getCourseInfoArray(cookie) {
         try {
             const { body } = await get(electAndDropURL, {}, cookie, homepageURL);
             if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
-                clit.out('Timeout');
-                return 504;
+                clit.out('Expired');
+                return 401;
             }
             const array = htmlToCourseInfoArray(body);
             if (array !== 500) {
@@ -155,7 +167,7 @@ async function getCourseInfoArray(cookie) {
         }
         catch (err) {
             if (err instanceof Error) {
-                clit.log(err);
+                clit.out(err);
             }
         }
         await sleep(init_1.config.errSleep);
@@ -170,8 +182,8 @@ async function getElectedNum(index, seq, cookie) {
             xh: init_1.config.studentId
         }, cookie, electAndDropURL, init_1.config.getElectedNumTimeout);
         if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
-            clit.out('Timeout');
-            return 504;
+            clit.out('Expired');
+            return 401;
         }
         const result = JSON.parse(body).electedNum;
         if (result === 'NA') {
@@ -190,7 +202,7 @@ async function getElectedNum(index, seq, cookie) {
     }
     catch (err) {
         if (err instanceof Error) {
-            clit.log(err);
+            clit.out(err);
         }
         return 500;
     }
@@ -198,8 +210,8 @@ async function getElectedNum(index, seq, cookie) {
 async function getVCodeImg(cookie) {
     const { buffer, body } = await get(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random() * 10000)}`, {}, cookie, electAndDropURL);
     if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
-        clit.out('Timeout');
-        return 504;
+        clit.out('Expired');
+        return 401;
     }
     fs_1.writeFileSync(path_1.join(__dirname, `../info/vcode-imgs/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.gif`), buffer);
     return buffer.toString('base64');
@@ -234,16 +246,16 @@ async function verifyVCode(vcode, cookie) {
         return 200;
     }
     if (result === 1) {
-        return 401;
+        return 400;
     }
-    return 403;
+    return 500;
 }
 async function verifySession(cookie) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         try {
             const img = await getVCodeImg(cookie);
-            if (img === 504) {
-                return 504;
+            if (img === 401) {
+                return 401;
             }
             const result = await recognizeVCodeImg(img);
             if (result === 500) {
@@ -259,7 +271,7 @@ async function verifySession(cookie) {
         }
         catch (err) {
             if (err instanceof Error) {
-                clit.log(err);
+                clit.out(err);
             }
         }
         await sleep(init_1.config.errSleep);
@@ -271,8 +283,8 @@ async function electCourse(href, cookie) {
         const { body } = await get(href, {}, cookie, electAndDropURL);
         fs_1.writeFileSync(path_1.join(__dirname, `../info/election-results/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
         if (body.includes('会话超时') || body.includes('超时操作') || body.includes('重新登录')) {
-            clit.out('Timeout');
-            return 504;
+            clit.out('Expired');
+            return 401;
         }
         const ele = new jsdom_1.JSDOM(body).window.document.body.querySelector('#msgTips');
         if (ele === null) {
@@ -303,7 +315,7 @@ async function electCourse(href, cookie) {
     }
     catch (err) {
         if (err instanceof Error) {
-            clit.log(err);
+            clit.out(err);
         }
     }
     return 500;
@@ -322,7 +334,7 @@ async function createSession() {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         const cookie = await getElectiveCookie();
         const courseInfoArray = await getCourseInfoArray(cookie);
-        if (courseInfoArray !== 504) {
+        if (courseInfoArray !== 401) {
             clit.out('New session');
             return {
                 cookie,
@@ -337,7 +349,7 @@ async function createSession() {
 async function createMainSession() {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         const session = await createSession();
-        if (await verifySession(session.cookie) !== 504) {
+        if (await verifySession(session.cookie) !== 401) {
             return session;
         }
         await sleep(init_1.config.errSleep);
@@ -346,8 +358,8 @@ async function createMainSession() {
 }
 async function updateSession(session) {
     const result = await getCourseInfoArray(session.cookie);
-    if (result === 504) {
-        return 504;
+    if (result === 401) {
+        return 401;
     }
     session.courseInfoArray = result;
     init_1.saveSessions();
@@ -358,7 +370,7 @@ async function renewSession(session) {
     for (let i = 0; i < init_1.config.errLimit; i++) {
         Object.assign(session, await createSession());
         if (!init_1.sessions.main.includes(session)
-            || await verifySession(session.cookie) !== 504) {
+            || await verifySession(session.cookie) !== 401) {
             init_1.saveSessions();
             return;
         }
@@ -424,20 +436,20 @@ async function main() {
                         await sleep(init_1.config.congestionSleep);
                         return;
                     }
-                    if (result === 504) {
+                    if (result === 401) {
                         session.start = 0;
                         init_1.saveSessions();
                         return;
                     }
                     if (result === 400) {
-                        if (await updateSession(session) === 504) {
+                        if (await updateSession(session) === 401) {
                             session.start = 0;
                             init_1.saveSessions();
                         }
                         return;
                     }
                     if (result === 500) {
-                        clit.out(`Fail to get elected num`);
+                        clit.out(`Fail to get elected num`, 1);
                         return;
                     }
                     const { data } = result;
@@ -458,11 +470,11 @@ async function main() {
                     }
                     normal: {
                         const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
-                        if (result === 504 || result === 500) {
+                        if (result === 401 || result === 500) {
                             break normal;
                         }
                         if (result === 400) {
-                            if (await updateSession(mainSession) === 504) {
+                            if (await updateSession(mainSession) === 401) {
                                 break normal;
                             }
                             const mainCourseInfo = getCourseInfo(mainSession, courseDesc);

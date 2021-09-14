@@ -15,6 +15,10 @@ async function sleep(time:number){
 }
 async function get(url:string,params:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
     const result=await clit.request(url,params,{},cookie,referer,undefined,requestTimeout)
+    if(result===408){
+        clit.out('Timeout',1)
+        throw undefined
+    }
     if(typeof result==='number'){
         throw new Error(`${result}, fail to get ${url}`)
     }
@@ -22,6 +26,10 @@ async function get(url:string,params:Record<string,string>={},cookie='',referer=
 }
 async function post(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
     const result=await clit.request(url,{},form,cookie,referer,undefined,requestTimeout)
+    if(result===408){
+        clit.out('Timeout',1)
+        throw undefined
+    }
     if(typeof result==='number'){
         throw new Error(`${result}, fail to post ${url}`)
     }
@@ -29,6 +37,10 @@ async function post(url:string,form:Record<string,string>={},cookie='',referer='
 }
 async function ppost(url:string,form:Record<string,string>={},cookie='',referer='',requestTimeout?:number){
     const result=await pclit.request(url,{},form,cookie,referer,undefined,requestTimeout)
+    if(result===408){
+        clit.out('Timeout',1)
+        throw undefined
+    }
     if(typeof result==='number'){
         throw new Error(`${result}, fail to post ${url}`)
     }
@@ -79,7 +91,7 @@ async function getElectiveCookie(){
             return cookie
         }catch(err){
             if(err instanceof Error){
-                clit.log(err)
+                clit.out(err)
             }
         }
         await sleep(config.errSleep)
@@ -143,8 +155,8 @@ async function getCourseInfoArray(cookie:string){
         try{
             const {body}=await get(electAndDropURL,{},cookie,homepageURL)
             if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
-                clit.out('Timeout')
-                return 504
+                clit.out('Expired')
+                return 401
             }
             const array=htmlToCourseInfoArray(body)
             if(array!==500){
@@ -154,7 +166,7 @@ async function getCourseInfoArray(cookie:string){
             clit.out('Invalid html')
         }catch(err){
             if(err instanceof Error){
-                clit.log(err)
+                clit.out(err)
             }
         }
         await sleep(config.errSleep)
@@ -169,8 +181,8 @@ async function getElectedNum(index:number,seq:string,cookie:string){
             xh:config.studentId
         },cookie,electAndDropURL,config.getElectedNumTimeout)
         if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
-            clit.out('Timeout')
-            return 504
+            clit.out('Expired')
+            return 401
         }
         const result=JSON.parse(body).electedNum
         if(result==='NA'){
@@ -188,7 +200,7 @@ async function getElectedNum(index:number,seq:string,cookie:string){
         }
     }catch(err){
         if(err instanceof Error){
-            clit.log(err)
+            clit.out(err)
         }
         return 500
     }
@@ -196,8 +208,8 @@ async function getElectedNum(index:number,seq:string,cookie:string){
 async function getVCodeImg(cookie:string){
     const {buffer,body}=await get(`https://elective.pku.edu.cn/elective2008/DrawServlet?Rand=${(Math.random()*10000)}`,{},cookie,electAndDropURL)
     if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
-        clit.out('Timeout')
-        return 504
+        clit.out('Expired')
+        return 401
     }
     writeFileSync(join(__dirname,`../info/vcode-imgs/${CLIT.getDate()} ${CLIT.getTime()}.gif`),buffer)
     return buffer.toString('base64')
@@ -232,16 +244,16 @@ async function verifyVCode(vcode:string,cookie:string){
         return 200
     }
     if(result===1){
-        return 401
+        return 400
     }
-    return 403
+    return 500
 }
 async function verifySession(cookie:string){
     for(let i=0;i<config.errLimit;i++){
         try{
             const img=await getVCodeImg(cookie)
-            if(img===504){
-                return 504
+            if(img===401){
+                return 401
             }
             const result=await recognizeVCodeImg(img)
             if(result===500){
@@ -256,7 +268,7 @@ async function verifySession(cookie:string){
             }
         }catch(err){
             if(err instanceof Error){
-                clit.log(err)
+                clit.out(err)
             }
         }
         await sleep(config.errSleep)
@@ -268,8 +280,8 @@ async function electCourse(href:string,cookie:string){
         const {body}=await get(href,{},cookie,electAndDropURL)
         writeFileSync(join(__dirname,`../info/election-results/${CLIT.getDate()} ${CLIT.getTime()}.html`),body)
         if(body.includes('会话超时')||body.includes('超时操作')||body.includes('重新登录')){
-            clit.out('Timeout')
-            return 504
+            clit.out('Expired')
+            return 401
         }
         const ele=new JSDOM(body).window.document.body.querySelector('#msgTips')
         if(ele===null){
@@ -303,7 +315,7 @@ async function electCourse(href:string,cookie:string){
         }
     }catch(err){
         if(err instanceof Error){
-            clit.log(err)
+            clit.out(err)
         }
     }
     return 500
@@ -329,7 +341,7 @@ async function createSession():Promise<Session>{
     for(let i=0;i<config.errLimit;i++){
         const cookie=await getElectiveCookie()
         const courseInfoArray=await getCourseInfoArray(cookie)
-        if(courseInfoArray!==504){
+        if(courseInfoArray!==401){
             clit.out('New session')
             return {
                 cookie,
@@ -344,7 +356,7 @@ async function createSession():Promise<Session>{
 async function createMainSession():Promise<Session>{
     for(let i=0;i<config.errLimit;i++){
         const session=await createSession()
-        if(await verifySession(session.cookie)!==504){
+        if(await verifySession(session.cookie)!==401){
             return session
         }
         await sleep(config.errSleep)
@@ -353,8 +365,8 @@ async function createMainSession():Promise<Session>{
 }
 async function updateSession(session:Session){
     const result=await getCourseInfoArray(session.cookie)
-    if(result===504){
-        return 504
+    if(result===401){
+        return 401
     }
     session.courseInfoArray=result
     saveSessions()
@@ -366,7 +378,7 @@ async function renewSession(session:Session){
         Object.assign(session,await createSession())
         if(
             !sessions.main.includes(session)
-            ||await verifySession(session.cookie)!==504
+            ||await verifySession(session.cookie)!==401
         ){
             saveSessions()
             return
@@ -436,20 +448,20 @@ export async function main(){
                         await sleep(config.congestionSleep)
                         return
                     }
-                    if(result===504){
+                    if(result===401){
                         session.start=0
                         saveSessions()
                         return
                     }
                     if(result===400){
-                        if(await updateSession(session)===504){
+                        if(await updateSession(session)===401){
                             session.start=0
                             saveSessions()
                         }
                         return
                     }
                     if(result===500){
-                        clit.out(`Fail to get elected num`)
+                        clit.out(`Fail to get elected num`,1)
                         return
                     }
                     const {data}=result
@@ -470,11 +482,11 @@ export async function main(){
                     }
                     normal:{
                         const result=await electCourse(mainCourseInfo.href,mainSession.cookie)
-                        if(result===504||result===500){
+                        if(result===401||result===500){
                             break normal
                         }
                         if(result===400){
-                            if(await updateSession(mainSession)===504){
+                            if(await updateSession(mainSession)===401){
                                 break normal
                             }
                             const mainCourseInfo=getCourseInfo(mainSession,courseDesc)
