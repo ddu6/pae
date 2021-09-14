@@ -351,28 +351,32 @@ async function createMainSession():Promise<Session>{
     throw new Error('Fail to create main session')
 }
 async function updateSession(session:Session){
+    const {start}=session
+    session.start=0
+    saveSessions()
     const result=await getCourseInfoArray(session.cookie)
     if(result===504){
         return 504
     }
     session.courseInfoArray=result
-    saveSessions()
     if(sessions.main.includes(session)){
         if(await verifySession(session.cookie)===504){
             return 504
         }
     }
+    session.start=start
+    saveSessions()
     clit.out('Updated')
     return 200
 }
 async function renewSession(session:Session){
     for(let i=0;i<config.errLimit;i++){
         Object.assign(session,await createSession())
-        saveSessions()
-        if(!sessions.main.includes(session)){
-            return
-        }
-        if(await verifySession(session.cookie)!==504){
+        if(
+            !sessions.main.includes(session)
+            ||await verifySession(session.cookie)!==504
+        ){
+            saveSessions()
             return
         }
         await sleep(config.errSleep)
@@ -442,12 +446,11 @@ export async function main(){
                     }
                     if(result===504){
                         session.start=0
+                        saveSessions()
                         return
                     }
                     if(result===400){
-                        if(await updateSession(session)===504){
-                            session.start=0
-                        }
+                        await updateSession(session)
                         return
                     }
                     if(result===500){
@@ -490,6 +493,7 @@ export async function main(){
                         return courseDesc
                     }
                     mainSession.start=0
+                    saveSessions()
                     courseDescToElecting.set(courseDesc,undefined)
                     clit.out(`Fail to elect ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`)
                 })())
