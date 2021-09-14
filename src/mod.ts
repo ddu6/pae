@@ -351,20 +351,11 @@ async function createMainSession():Promise<Session>{
     throw new Error('Fail to create main session')
 }
 async function updateSession(session:Session){
-    const {start}=session
-    session.start=0
-    saveSessions()
     const result=await getCourseInfoArray(session.cookie)
     if(result===504){
         return 504
     }
     session.courseInfoArray=result
-    if(sessions.main.includes(session)){
-        if(await verifySession(session.cookie)===504){
-            return 504
-        }
-    }
-    session.start=start
     saveSessions()
     clit.out('Updated')
     return 200
@@ -450,7 +441,10 @@ export async function main(){
                         return
                     }
                     if(result===400){
-                        await updateSession(session)
+                        if(await updateSession(session)===504){
+                            session.start=0
+                            saveSessions()
+                        }
                         return
                     }
                     if(result===500){

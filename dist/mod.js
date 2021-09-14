@@ -344,20 +344,11 @@ async function createMainSession() {
     throw new Error('Fail to create main session');
 }
 async function updateSession(session) {
-    const { start } = session;
-    session.start = 0;
-    init_1.saveSessions();
     const result = await getCourseInfoArray(session.cookie);
     if (result === 504) {
         return 504;
     }
     session.courseInfoArray = result;
-    if (init_1.sessions.main.includes(session)) {
-        if (await verifySession(session.cookie) === 504) {
-            return 504;
-        }
-    }
-    session.start = start;
     init_1.saveSessions();
     clit.out('Updated');
     return 200;
@@ -438,7 +429,10 @@ async function main() {
                         return;
                     }
                     if (result === 400) {
-                        await updateSession(session);
+                        if (await updateSession(session) === 504) {
+                            session.start = 0;
+                            init_1.saveSessions();
+                        }
                         return;
                     }
                     if (result === 500) {
