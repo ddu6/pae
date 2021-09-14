@@ -4,7 +4,8 @@ import {JSDOM} from 'jsdom'
 import {CLIT} from '@ddu6/cli-tools'
 import {config, CourseInfo, saveConfig, saveSessions, Session, sessions} from './init'
 const clit=new CLIT(__dirname,{
-    requestTimeout:config.requestTimeout
+    requestTimeout:config.requestTimeout,
+    logLevel:config.logLevel,
 })
 const pclit=new CLIT(__dirname,config)
 async function sleep(time:number){
@@ -453,7 +454,7 @@ export async function main(){
                     }
                     const {data}=result
                     if(data>=courseInfo.limit){
-                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`)
+                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`,2)
                         return
                     }
                     clit.out(`Place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`)

@@ -7,7 +7,8 @@ const jsdom_1 = require("jsdom");
 const cli_tools_1 = require("@ddu6/cli-tools");
 const init_1 = require("./init");
 const clit = new cli_tools_1.CLIT(__dirname, {
-    requestTimeout: init_1.config.requestTimeout
+    requestTimeout: init_1.config.requestTimeout,
+    logLevel: init_1.config.logLevel,
 });
 const pclit = new cli_tools_1.CLIT(__dirname, init_1.config);
 async function sleep(time) {
@@ -441,7 +442,7 @@ async function main() {
                     }
                     const { data } = result;
                     if (data >= courseInfo.limit) {
-                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`);
+                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`, 2);
                         return;
                     }
                     clit.out(`Place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`);

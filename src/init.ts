@@ -39,6 +39,7 @@ export const config={
     requestTimeout:30,
     getElectedNumTimeout:3,
     recognizeTimeout:5,
+    logLevel:1,
 }
 export interface CourseInfo{
     title:string
