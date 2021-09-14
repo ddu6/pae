@@ -3,7 +3,8 @@ import {join} from 'path'
 [
     '../info/',
     '../info/election-results/',
-    '../info/vcode-imgs/'
+    '../info/invalid-html',
+    '../info/vcode-imgs/',
 ].map(val=>join(__dirname,val)).forEach(val=>{
     if(!existsSync(val)){
         mkdirSync(val)

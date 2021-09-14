@@ -93,12 +93,12 @@ function htmlToCourseInfoArray(html) {
     const ele = Array.from(new jsdom_1.JSDOM(html).window.document.body.querySelectorAll('table table>tbody'))
         .find(val => val.innerHTML.includes('限数/已选'));
     if (ele === undefined) {
-        throw Error();
+        return 500;
     }
     const courseInfoArray = [];
-    for (const { children } of ele.querySelectorAll(':scope>tr:not(:first-child)')) {
-        if (children.length < 10) {
-            throw Error();
+    for (const { children } of ele.querySelectorAll(':scope>tr:not(:first-child):not(.datagrid-footer):not(:last-child)')) {
+        if (children.length !== 11) {
+            return 500;
         }
         const title = children[0].textContent ?? '';
         const number = Number(children[5].textContent);
@@ -110,20 +110,20 @@ function htmlToCourseInfoArray(html) {
             || department.length === 0
             || !isFinite(limit) || limit <= 0
             || a === null) {
-            throw Error();
+            return 500;
         }
         const { href } = new URL(a.href, electAndDropURL);
         const array = (a.getAttribute('onclick') ?? '')
             .replace(/.*?\(/, '').replace(/[);\\']/g, '')
             .split(',');
         if (array.length < 9) {
-            throw Error();
+            return 500;
         }
         const index = Number(array[5]);
         const seq = array[6];
         if (!isFinite(index) || index < 0
             || seq.length === 0) {
-            throw Error();
+            return 500;
         }
         courseInfoArray.push({
             title,
@@ -145,7 +145,11 @@ async function getCourseInfoArray(cookie) {
                 clit.out('Timeout');
                 return 504;
             }
-            return htmlToCourseInfoArray(body);
+            const array = htmlToCourseInfoArray(body);
+            if (array !== 500) {
+                return array;
+            }
+            fs_1.writeFileSync(path_1.join(__dirname, `../info/invalid-html/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
         }
         catch (err) {
             if (err instanceof Error) {

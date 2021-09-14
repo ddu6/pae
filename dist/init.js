@@ -6,7 +6,8 @@ const path_1 = require("path");
 [
     '../info/',
     '../info/election-results/',
-    '../info/vcode-imgs/'
+    '../info/invalid-html',
+    '../info/vcode-imgs/',
 ].map(val => path_1.join(__dirname, val)).forEach(val => {
     if (!fs_1.existsSync(val)) {
         fs_1.mkdirSync(val);
