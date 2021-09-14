@@ -150,6 +150,7 @@ async function getCourseInfoArray(cookie:string){
                 return array
             }
             writeFileSync(join(__dirname,`../info/invalid-html/${CLIT.getDate()} ${CLIT.getTime()}.html`),body)
+            clit.out('Invalid html')
         }catch(err){
             if(err instanceof Error){
                 clit.log(err)

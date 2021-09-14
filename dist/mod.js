@@ -150,6 +150,7 @@ async function getCourseInfoArray(cookie) {
                 return array;
             }
             fs_1.writeFileSync(path_1.join(__dirname, `../info/invalid-html/${cli_tools_1.CLIT.getDate()} ${cli_tools_1.CLIT.getTime()}.html`), body);
+            clit.out('Invalid html');
         }
         catch (err) {
             if (err instanceof Error) {
