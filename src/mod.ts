@@ -456,10 +456,10 @@ export async function main(){
                     }
                     const {data}=result
                     if(data>=courseInfo.limit){
-                        clit.out(`No place avaliable for ${courseInfo.title}`)
+                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number}`)
                         return
                     }
-                    clit.out(`Place avaliable for ${courseInfo.title}`)
+                    clit.out(`Place avaliable for ${courseInfo.title} ${courseInfo.number}`)
                     if(courseDescToElecting.get(courseDesc)){
                         return
                     }
@@ -491,7 +491,7 @@ export async function main(){
                     }
                     mainSession.start=0
                     courseDescToElecting.set(courseDesc,undefined)
-                    clit.out(`Fail to elect ${courseInfo.title}`)
+                    clit.out(`Fail to elect ${courseInfo.title} ${courseInfo.number}`)
                 })())
             }
             await sleep(config.refreshInterval)
