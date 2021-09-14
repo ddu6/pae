@@ -90,81 +90,49 @@ async function getElectiveCookie() {
     throw new Error('Fail to get elective cookie');
 }
 function htmlToCourseInfoArray(html) {
-    const dom = new jsdom_1.JSDOM(html);
-    let ele;
-    let result = dom.window.document.body.querySelectorAll('table table>tbody');
-    for (let i = 0; i < result.length; i++) {
-        const val = result[i];
-        const html = val.innerHTML;
-        if (html.includes('限数/已选')) {
-            ele = val;
-            break;
-        }
-    }
+    const ele = Array.from(new jsdom_1.JSDOM(html).window.document.body.querySelectorAll('table table>tbody'))
+        .find(val => val.innerHTML.includes('限数/已选'));
     if (ele === undefined) {
-        return [];
+        throw Error();
     }
     const courseInfoArray = [];
-    result = ele.querySelectorAll(':scope>tr');
-    for (let i = 0; i < result.length; i++) {
-        const children = result[i].children;
+    for (const { children } of ele.querySelectorAll(':scope>tr:not(:first-child)')) {
         if (children.length < 10) {
-            continue;
+            throw Error();
         }
-        let tmp = children[0].textContent;
-        if (tmp === null) {
-            continue;
-        }
-        const title = tmp;
-        tmp = children[5].textContent;
-        if (tmp === null) {
-            continue;
-        }
-        const number = Number(tmp);
-        if (!isFinite(number)) {
-            continue;
-        }
-        tmp = children[6].textContent;
-        if (tmp === null) {
-            continue;
-        }
-        const department = tmp;
-        tmp = children[9].textContent;
-        if (tmp === null) {
-            continue;
-        }
-        tmp = tmp.split('/')[0].trim();
-        const limit = Number(tmp);
-        if (!isFinite(number)) {
-            continue;
-        }
+        const title = children[0].textContent ?? '';
+        const number = Number(children[5].textContent);
+        const department = children[6].textContent ?? '';
+        const limit = Number((children[9].textContent ?? '').split('/')[0]);
         const a = children[10].querySelector('a');
-        if (a === null) {
-            continue;
+        if (title.length === 0
+            || !isFinite(number) || number <= 0
+            || department.length === 0
+            || !isFinite(limit) || limit <= 0
+            || a === null) {
+            throw Error();
         }
-        const href = new URL(a.href, electAndDropURL).href;
-        tmp = a.getAttribute('onclick');
-        if (tmp === null) {
-            continue;
-        }
-        tmp = tmp.replace(/.*?\(/, '').replace(/[);\\']/g, '');
-        const array = tmp.split(',');
+        const { href } = new URL(a.href, electAndDropURL);
+        const array = (a.getAttribute('onclick') ?? '')
+            .replace(/.*?\(/, '').replace(/[);\\']/g, '')
+            .split(',');
         if (array.length < 9) {
-            continue;
+            throw Error();
         }
         const index = Number(array[5]);
-        if (!isFinite(index)) {
-            continue;
-        }
         const seq = array[6];
+        if (!isFinite(index) || index < 0
+            || seq.length === 0) {
+            throw Error();
+        }
         courseInfoArray.push({
-            title: title,
-            number: number,
-            department: department,
-            limit: limit,
-            href: href,
-            index: index,
-            seq: seq
+            title,
+            number,
+            department,
+            limit,
+            href,
+            index,
+            seq,
         });
     }
     return courseInfoArray;
@@ -300,16 +268,14 @@ async function electCourse(href, cookie) {
             clit.out('Timeout');
             return 504;
         }
-        const dom = new jsdom_1.JSDOM(body);
-        const ele = dom.window.document.body.querySelector('#msgTips');
+        const ele = new jsdom_1.JSDOM(body).window.document.body.querySelector('#msgTips');
         if (ele === null) {
             return 500;
         }
-        let msg = ele.textContent;
-        if (msg === null) {
+        const msg = (ele.textContent ?? '').trim();
+        if (msg.length === 0) {
             return 500;
         }
-        msg = msg.trim();
         clit.out(msg);
         if (msg.includes('选课课程已失效')
             || msg.includes('您的可选列表中无此课程')) {
@@ -499,12 +465,11 @@ async function main() {
                                 break normal;
                             }
                             const mainCourseInfo = getCourseInfo(mainSession, courseDesc);
-                            if (mainCourseInfo === undefined) {
-                                return;
-                            }
-                            const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
-                            if (result !== 200) {
-                                break normal;
+                            if (mainCourseInfo !== undefined) {
+                                const result = await electCourse(mainCourseInfo.href, mainSession.cookie);
+                                if (result !== 200 && result !== 409) {
+                                    break normal;
+                                }
                             }
                         }
                         return courseDesc;
