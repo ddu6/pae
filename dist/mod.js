@@ -446,10 +446,10 @@ async function main() {
                     }
                     const { data } = result;
                     if (data >= courseInfo.limit) {
-                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number}`);
+                        clit.out(`No place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`);
                         return;
                     }
-                    clit.out(`Place avaliable for ${courseInfo.title} ${courseInfo.number}`);
+                    clit.out(`Place avaliable for ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`);
                     if (courseDescToElecting.get(courseDesc)) {
                         return;
                     }
@@ -481,7 +481,7 @@ async function main() {
                     }
                     mainSession.start = 0;
                     courseDescToElecting.set(courseDesc, undefined);
-                    clit.out(`Fail to elect ${courseInfo.title} ${courseInfo.number}`);
+                    clit.out(`Fail to elect ${courseInfo.title} ${courseInfo.number} of ${courseInfo.department}`);
                 })());
             }
             await sleep(init_1.config.refreshInterval);
